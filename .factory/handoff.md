@@ -49,6 +49,8 @@ The root `Dockerfile` remains a multi-stage, non-root container build with `/dat
 
 It passes the immutable source commit as `BUILD_SHA`, `GIT_SHA`, and `SOURCE_COMMIT`; verify the deployed revision with `GET /health` after deployment.
 
+Deployment completed on 2026-08-28 with image `sociobotregistry.azurecr.io/sf-code-lesson-checkpoints:eb7b20bfcb4e`. Live `GET https://code-lesson-checkpoints.sociobot.in/health` returned `{"build":"eb7b20bfcb4e555c457a5bb03963e787383a5d3d","status":"ok"}`. The live hashed bundle returned the immutable cache policy, and an independent fresh API exercise created an unnamed lesson, opened it through its private tutor token, confirmed server-side `DATABASE_URL` redaction, saved a tutor reply, and permanently deleted the record. The deployed URL verifier returned HTTP 200 in 655 ms with no console errors and valid title/lang/h1/main/alt/button checks.
+
 ## Known gaps
 
 - The local Lighthouse CLI was attempted with the preinstalled Playwright Chromium but could not attach to that browser in this root container (`Unable to connect to Chrome`). The automated axe, responsive, keyboard, bundle-size, browser-load, and PWA checks above passed. The prior independent report recorded Lighthouse mobile 100/100/100/100 for the unchanged visual/runtime baseline; rerun Lighthouse in the deployment worker if a fresh score artifact is required.
