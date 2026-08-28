@@ -61,7 +61,7 @@ The generated hero illustration is original project artwork; prompt and provenan
 
 ## Deployment
 
-The multi-stage Dockerfile compiles both frontend and Rust service, runs as a non-root user on port 8080, and keeps SQLite under `/data`. Because SQLite is a single-writer store, [`deployment/container-app.json`](deployment/container-app.json) requires exactly one replica and a durable Azure Files mount at `/data`. After the factory creates or updates the container app, `scripts/apply-deployment-contract.sh` applies and verifies that product-specific topology. `BASE_URL=https://code-lesson-checkpoints.sociobot.in EXPECTED_BUILD_SHA=<commit> npm run test:coherence` checks the full workflow over fresh connections. DNS, storage provisioning, and billing registration remain factory-managed outside this repository.
+The multi-stage Dockerfile compiles both frontend and Rust service, runs as a non-root user on port 8080, and keeps SQLite under `/data`. Because SQLite is a single-writer store, [`deployment/container-app.json`](deployment/container-app.json) requires exactly one replica and a durable Azure Files mount at `/data`; the deployed URL selects SQLite's lock-file VFS for that network mount. After the factory creates or updates the container app, `scripts/apply-deployment-contract.sh` applies and verifies that product-specific topology. `BASE_URL=https://code-lesson-checkpoints.sociobot.in EXPECTED_BUILD_SHA=<commit> npm run test:coherence` checks the full workflow over fresh connections. DNS, storage provisioning, and billing registration remain factory-managed outside this repository.
 
 ## License
 

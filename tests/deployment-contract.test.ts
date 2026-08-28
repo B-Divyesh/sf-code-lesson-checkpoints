@@ -25,7 +25,7 @@ describe('SQLite container deployment contract', () => {
     expect(deployment.targetPort).toBe(8080);
     expect(deployment.scale).toEqual({ minReplicas: 1, maxReplicas: 1 });
     expect(deployment.sqlite).toMatchObject({
-      databaseUrl: 'sqlite:///data/checkpoints.db?mode=rwc',
+      databaseUrl: 'sqlite:///data/checkpoints.db?mode=rwc&vfs=unix-dotfile',
       mountPath: '/data',
       volumeName: 'lesson-data',
       storageType: 'AzureFile',

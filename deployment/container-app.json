@@ -10,7 +10,7 @@
     "maxReplicas": 1
   },
   "sqlite": {
-    "databaseUrl": "sqlite:///data/checkpoints.db?mode=rwc",
+    "databaseUrl": "sqlite:///data/checkpoints.db?mode=rwc&vfs=unix-dotfile",
     "mountPath": "/data",
     "volumeName": "lesson-data",
     "storageType": "AzureFile",
