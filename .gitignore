@@ -4,3 +4,12 @@ dist/
 *.log
 graphify-out/
 .DS_Store
+# Build output and local state
+node_modules/
+dist/
+target/
+extension/dist/
+checkpoints.db*
+.DS_Store
+playwright-report/
+test-results/

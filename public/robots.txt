@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://code-lesson-checkpoints.sociobot.in/sitemap.xml

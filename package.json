@@ -1,0 +1,32 @@
+{
+  "name": "code-lesson-checkpoints",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build && npm run build:extension",
+    "build:extension": "tsc -p extension/tsconfig.json",
+    "test": "npm run test:unit && cargo test",
+    "test:unit": "vitest run",
+    "test:e2e": "node tests/browser-smoke.mjs",
+    "preview": "vite preview",
+    "check": "tsc --noEmit",
+    "assets": "node scripts/optimize-assets.mjs"
+  },
+  "dependencies": {
+    "@fontsource-variable/fraunces": "5.2.8",
+    "@fontsource/atkinson-hyperlegible": "5.2.8"
+  },
+  "devDependencies": {
+    "@axe-core/playwright": "^4.10.2",
+    "@types/node": "22.15.3",
+    "@types/vscode": "1.98.0",
+    "jsdom": "26.1.0",
+    "playwright": "1.58.2",
+    "sharp": "^0.35.4",
+    "typescript": "5.8.3",
+    "vite": "^6.4.3",
+    "vitest": "^3.2.6"
+  }
+}

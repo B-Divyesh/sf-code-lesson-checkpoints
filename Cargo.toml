@@ -1,0 +1,24 @@
+[package]
+name = "code-lesson-checkpoints"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+
+[dependencies]
+anyhow = "1"
+axum = { version = "0.8", features = ["macros"] }
+blake3 = "1"
+rand = "0.9"
+regex = "1"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sqlx = { version = "0.8", features = ["runtime-tokio-rustls", "sqlite", "migrate"] }
+tokio = { version = "1", features = ["full"] }
+tower-http = { version = "0.6", features = ["compression-br", "compression-gzip", "cors", "fs", "limit", "set-header", "trace"] }
+tower_governor = { version = "0.8", default-features = false, features = ["axum"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
+uuid = { version = "1", features = ["v4"] }
+
+[dev-dependencies]
+tower = { version = "0.5", features = ["util"] }

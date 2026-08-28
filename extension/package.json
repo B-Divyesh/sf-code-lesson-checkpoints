@@ -1,0 +1,31 @@
+{
+  "name": "code-lesson-checkpoints",
+  "displayName": "Code Lesson Checkpoints",
+  "description": "Run learner-owned lesson checkpoints locally and share selected evidence.",
+  "version": "0.1.0",
+  "publisher": "sociobot",
+  "license": "MIT",
+  "engines": { "vscode": "^1.98.0" },
+  "categories": ["Education", "Testing"],
+  "activationEvents": ["onCommand:codeLesson.connect", "onCommand:codeLesson.open"],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "commands": [
+      { "command": "codeLesson.connect", "title": "Code Lesson: Connect to Lesson" },
+      { "command": "codeLesson.open", "title": "Code Lesson: Open Checkpoints" },
+      { "command": "codeLesson.disconnect", "title": "Code Lesson: Disconnect" }
+    ],
+    "configuration": {
+      "title": "Code Lesson Checkpoints",
+      "properties": {
+        "codeLesson.serverUrl": {
+          "type": "string",
+          "default": "https://code-lesson-checkpoints.sociobot.in",
+          "description": "Checkpoint relay URL. Change this only when your tutor gives you a self-hosted relay."
+        }
+      }
+    }
+  },
+  "scripts": { "build": "tsc -p tsconfig.json" },
+  "files": ["dist", "README.md", "package.json"]
+}
