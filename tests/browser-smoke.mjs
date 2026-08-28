@@ -75,6 +75,20 @@ try {
     await assertAccessible(page, route);
   }
 
+  // A license returned from hosted checkout must update this first pricing
+  // render. Previously it was stored and verified but still showed Buy until
+  // the tutor manually refreshed the page.
+  const billingContext = await browser.newContext({ viewport: { width: 390, height: 844 } });
+  const billingPage = await billingContext.newPage();
+  await billingPage.route('https://api.sociobot.in/api/v1/products/code-lesson-checkpoints/verify?license=qa-license-token', async (route) => {
+    await route.fulfill({ contentType: 'application/json', body: JSON.stringify({ valid: true, reason: 'ok' }) });
+  });
+  await billingPage.goto(`${baseURL}/pricing?license=qa-license-token`);
+  await billingPage.getByRole('link', { name: 'Open Team archive' }).waitFor();
+  assert.equal(new URL(billingPage.url()).searchParams.has('license'), false, 'returned license is removed from the visible URL');
+  assert.equal(await billingPage.locator('a[href="/team"]').count(), 2, 'returned valid license unlocks the first pricing render');
+  await billingContext.close();
+
   await page.goto(`${baseURL}/new`);
   await assertAccessible(page, 'lesson form');
   await page.getByLabel('Lesson title').fill('Async debugging');

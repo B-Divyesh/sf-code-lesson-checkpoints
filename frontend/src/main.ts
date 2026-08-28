@@ -431,7 +431,9 @@ async function pricing(): Promise<void> {
       const verdict = await verifyLicense(license, true);
       if (verdict.valid) {
         localStorage.setItem(`sb_license:${PRODUCT_SLUG}`, license);
-        if (status) status.textContent = 'Team archive unlocked on this device.';
+        // Redraw now rather than asking the tutor to reload before the
+        // returned/entered license changes the available action.
+        void pricing();
       } else {
         localStorage.removeItem(`sb_license:${PRODUCT_SLUG}`);
         if (status) status.textContent = `License no longer active (${verdict.reason.replace('_', ' ')}). You can continue using the free Pair plan.`;
@@ -443,6 +445,11 @@ async function pricing(): Promise<void> {
     if (!verdict.valid) {
       localStorage.removeItem(`sb_license:${PRODUCT_SLUG}`);
       if (status) status.textContent = `License no longer active (${verdict.reason.replace('_', ' ')}). Free lesson tools remain available.`;
+    } else if (!optimistic) {
+      // A checkout return stores its token before the first render, but has no
+      // cached verdict yet. Render again as soon as that first verification
+      // succeeds so the archive unlock is visible without a manual reload.
+      void pricing();
     }
   }).catch(() => undefined);
 }

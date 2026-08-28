@@ -18,6 +18,7 @@ const deployment = JSON.parse(
   readFileSync(new URL('../deployment/container-app.json', import.meta.url), 'utf8'),
 ) as Deployment;
 const dockerfile = readFileSync(new URL('../Dockerfile', import.meta.url), 'utf8');
+const deploymentScript = readFileSync(new URL('../scripts/apply-deployment-contract.sh', import.meta.url), 'utf8');
 
 describe('SQLite container deployment contract', () => {
   it('uses one durable writer instead of per-replica databases', () => {
@@ -37,5 +38,14 @@ describe('SQLite container deployment contract', () => {
     expect(dockerfile).toContain('DATABASE_URL=sqlite:///data/checkpoints.db?mode=rwc');
     expect(dockerfile).toContain('VOLUME ["/data"]');
     expect(dockerfile).toContain('EXPOSE 8080');
+  });
+
+  it('applies and then reads back the live topology instead of only documenting it', () => {
+    expect(deploymentScript).toContain('az rest');
+    expect(deploymentScript).toContain('maxReplicas:$maxReplicas');
+    expect(deploymentScript).toContain('storageType:"AzureFile"');
+    expect(deploymentScript).toContain('DATABASE_URL');
+    expect(deploymentScript).toContain('.properties.template.scale.maxReplicas == 1');
+    expect(deploymentScript).toContain('.properties.template.volumes[0].storageName == $storage');
   });
 });
