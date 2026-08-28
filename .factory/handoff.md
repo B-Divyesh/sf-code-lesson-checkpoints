@@ -1,7 +1,7 @@
 # Repair handoff — Code Lesson Checkpoints
 
 **Base verified:** `3855ec15f8c6924c830adfa079f986d05701e32d`
-**Repair commit:** pending commit
+**Repair commit:** `ca6beef91f1d3f753795a175e6dd442f725842b9`
 **Deployment class:** Rust/Axum + SQLite container serving the Vite frontend on `PORT=8080`
 
 ## Release-blocking repairs
