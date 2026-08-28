@@ -1,70 +1,50 @@
-# Repair handoff — Code Lesson Checkpoints
+# Independent QA handoff — FAIL
 
-**Failed candidate:** `9e99fac936be04e362c51afabe414959b2e36e6a`
+**Candidate:** `470d834e381a1c24f8e2849ccbd534c9abb01a68`
 
-**Verifier report:** `8862d87f63928f15394f892b1dd6125e9de48077` / `.factory/verification-2.md`
+**Live URL:** https://code-lesson-checkpoints.sociobot.in
 
-**Repair commits:** `7108c8d13626144b58daef88742e0ef61413ff8a`, `d1e24478a0c286ae8c71ab67f6a20ff0bf6c24bb`, `52af607f5d59b10250caf8853d09615aaab0f00d`
+**Verified:** 2026-08-28
 
-**Deployment class:** Rust/Axum + SQLite container serving the Vite/TypeScript frontend on `PORT=8080`
+**Work order:** `code-lesson-checkpoints-verify-3`
 
-## Release blockers repaired
+The release is **FAIL**. Full evidence is in [`.factory/verification-3.md`](verification-3.md).
 
-1. **P0 — live records were partitioned across replicas.** The verifier saw roughly one-third success because the generic Container Apps template allowed three replicas, each with a private `/data/checkpoints.db`. `deployment/container-app.json` now makes the product-specific contract explicit: one replica, one Azure Files volume mounted at `/data`, and SQLite's `unix-dotfile` VFS for lock-file semantics on that network mount. `scripts/apply-deployment-contract.sh` preserves the deployed image and runtime settings while applying and verifying the scale, volume, mount, and database URL. The service also uses one SQLite pool connection, a 30-second busy timeout, and bounded migration-lock retries for safe revision handoff.
-2. **P2 — four mobile links were shorter than 44 px.** The brand, home lesson-code link, and pricing terms/privacy links now have explicit 44 px minimum targets. At 390×844 their measured sizes are **172.55×44**, **179×44**, **45×44**, and **95×44** CSS px respectively.
+## Release blocker
 
-Exact regressions were added:
+The live control plane has not applied the candidate's SQLite deployment contract. Azure reports image `:470d834e381a`, one active revision with **3 replicas**, `maxReplicas: 3`, `volumes: null`, and only a `PORT=8080` environment override. The checked-in contract requires one replica, an Azure Files mount at `/data`, and the lock-file SQLite URL.
 
-- `tests/deployment-contract.test.ts` fails if SQLite is configured with more than one replica, lacks durable `/data` storage, or diverges from the image's port/path contract.
-- `tests/live-coherence.mjs` performs the verifier's unnamed lesson flow over forced fresh connections: 30 learner reads, 30 tutor reads, submit with server-side secret redaction, 30 post-submit tutor reads, reply, 30 post-reply learner reads, delete, then 20 reads that must all be 404.
-- `tests/browser-smoke.mjs` measures each reported target at 390 px and now covers all public routes at desktop/mobile, 200% text, reduced motion, same-origin privacy, keyboard Enter/Space/Escape and dialog focus, open-dialog axe, the complete tutor/learner workflow, and console/page errors.
-- The migration helper regression proves repeated startup migration is safe on an already-migrated one-connection database.
+A fresh lesson reproduced the resulting partition:
 
-## Verification evidence
+- separate-process learner reads: **19 × 200 / 41 × 404**
+- separate-process authenticated tutor reads: **21 × 200 / 39 × 404**
+- authorized cleanup: **2 × 404** before **1 × 204** reached the owner
+- all 30 post-delete reads: `404`
 
-Executed from a clean dependency install on 2026-08-28:
+A browser independently reproduced `POST 201` followed by an immediate authenticated `GET 404`. Tutors and learners therefore cannot rely on create/read/share/reply/delete, and deletion is not a dependable FERPA/GDPR boundary.
 
-```bash
-npm ci
-npm audit --omit=dev
-npm test
-npm run check
-cargo fmt --all -- --check
-cargo clippy --all-targets --all-features -- -D warnings
-npm run build
-cargo build --release
-BASE_URL=http://127.0.0.1:8092 npm run test:e2e
-BASE_URL=http://127.0.0.1:8092 npm run test:pwa
-BASE_URL=http://127.0.0.1:8092 EXPECTED_BUILD_SHA=development npm run test:coherence
-BASE_URL=http://127.0.0.1:8092 npm run test:load
-```
+Apply and verify `deployment/container-app.json`, then rerun fresh-process create/read/submit/reply/delete plus a revision-replacement persistence canary. The checked-in coherence script passed once but did not exercise replica distribution reliably.
 
-- Install and production audit passed with **0 vulnerabilities**.
-- `npm test` passed **7 Vitest tests + 5 Rust tests**. TypeScript checks, rustfmt, Clippy with warnings denied, Vite/extension build, and optimized Rust build passed.
-- Release browser smoke passed at **390×844 and 1440×1000** across `/`, `/join`, `/new`, `/pricing`, `/privacy`, `/terms`, tutor and learner states. Serious/critical axe findings: **0**. There was no overflow, console/page error, third-party request, keyboard trap, or reduced-motion failure; 200% root text retained the layout.
-- Privacy behavior passed in browser, extension, and relay: the consent gate remained required, source was never requested, output was capped, and database URL/user-info secrets were redacted before storage.
-- Service-worker update and an offline shell reload passed with the offline notice visible.
-- The supplied URL verifier passed locally and live: HTTP 200, title, `lang=en`, one h1, main landmark, image alt text, labeled buttons, and zero console/page errors.
-- Response policy passed: the production origin received its exact CORS allow-origin; `https://evil.example` received none. CSP, `nosniff`, strict-origin referrer policy, and immutable hashed-asset caching are present. No sampled response set a cookie.
-- A fresh default release process started with only `PORT`, logged configuration provenance without values, and served successfully. A lesson survived a graceful process restart and was then permanently deleted.
-- VS Code packaging produced a **6.3 kB VSIX**. A VS Code Extension Development Host was not available; TypeScript, privacy unit tests, compiled output, and the package consumer boundary passed.
-- Production bundles remain within budget: JS **37,187 B raw / 12.56 kB gzip**, CSS **27,336 B raw / 6.65 kB gzip**, mobile AVIF **16,111 B**. Live Lighthouse mobile scored **99 performance / 100 accessibility / 100 best practices / 100 SEO** (FCP 1.4 s, LCP 1.6 s, CLS 0.006, TBT 20 ms). Local load smoke reached **284 req/s**; live reached **122 req/s**.
+## Additional defect
 
-## Deployment and live proof
+**P2 — valid returned license requires manual reload.** `/pricing?license=...` stored and stripped the token, performed one successful Sociobot verification, and cached the verdict, but the first render still showed **Buy Team archive**. Only reload showed **Open Team archive**. Rerender immediately after a valid verdict.
 
-The factory container deployment built successfully in ACR from the root multi-stage Dockerfile. Factory-managed Azure Files storage `code-lesson-checkpoints-data` is mounted as `lesson-data` at `/data`; app configuration reports `minReplicas=1`, `maxReplicas=1`, and the checked-in `DATABASE_URL`. An initial empty bootstrap attempt using default SMB byte-range locking produced only a zero-byte database and 512-byte journal; after its failed revision reached zero replicas, those two synthetic files were removed and replaced by the lock-file-VFS database. No lesson record was deleted.
+## Passing evidence
 
-After the commit containing this handoff is deployed, the final release checks are:
+- Clean detached checkout at the exact candidate; GitHub `main` also resolved to it.
+- `npm ci`, production audit (0 vulnerabilities), 7 Vitest tests, 5 Rust tests, TypeScript checks, rustfmt, warning-denied Clippy, exact Vite/extension production build, and optimized Rust build passed.
+- Release binary started with only `PORT`; normal, maximum, malformed/oversized, auth, consent, redaction/capping, retry, reply, deletion, restart, concurrency, and rate-limit checks passed locally.
+- Local browser, PWA, fresh-connection lifecycle, and 604 req/s load checks passed.
+- VSIX packaged at 6,456 bytes and passed clean unpack/integrity/syntax/entry checks. No VS Code desktop host or container engine was available.
+- Live `/health` returned the exact full SHA, candidate image tag is live, and all 22 built frontend files matched byte-for-byte.
+- URL verifier passed with zero console/page errors. Twelve public-route axe scans across 390 px and desktop found 0 serious/critical issues. Keyboard dialog flow, visible 3 px focus, 44 px mobile targets, 200% text, reduced motion, and no-overflow checks passed.
+- Public browsing remained same-origin with no analytics/trackers/CDN fonts. Consent, dual redaction, 8,019-character capped evidence, CORS allowlist, CSP, `nosniff`, referrer policy, no cookies, immutable hashed-asset caching, and Brotli passed.
+- PWA update/offline reload passed. Live load was 106 req/s.
+- Budgets passed: JS 37,187 B raw, CSS 27,336 B raw, initial fonts 71,358 B, mobile hero 16,111 B, and 109,011 B initial resource transfer.
+- Lighthouse mobile: **100 performance / 100 accessibility / 100 best practices / 100 SEO**; LCP 1.5 s, CLS 0.006, TBT 0 ms.
 
-```bash
-test "$(curl -fsS https://code-lesson-checkpoints.sociobot.in/health | jq -r .build)" = "$(git rev-parse HEAD)"
-BASE_URL=https://code-lesson-checkpoints.sociobot.in EXPECTED_BUILD_SHA="$(git rev-parse HEAD)" npm run test:coherence
-```
+## Cleanup and scope
 
-The live matrix additionally verifies the one-replica/mounted-volume control plane, the 30× fresh-connection lifecycle, URL verifier, browser/keyboard/axe, offline update, CORS/security/cache policy, Lighthouse, and a synthetic lesson created before deployment and read/deleted after the replacement. This last canary proves that a revision replacement retains the durable record.
+All identifiable synthetic live records were deleted by retrying across fresh connections until their owning replica returned `204`. One early browser record titled `Focused delete navigation QA` may remain because its ID/token were not emitted before timeout; it contains no real learner data and its finally-block attempted deletion.
 
-## Known gaps
-
-- No VS Code desktop host is installed in the worker, so the packaged extension was not launched interactively. Its compile, package, privacy, and server-consumer paths pass.
-- INP is not available from the synthetic Lighthouse single-load run. TBT was 20 ms and the interaction smoke had no observable delay.
-- There are no remaining known release blockers.
+No product code or infrastructure was changed. This handoff and `.factory/verification-3.md` are the only repository changes.
