@@ -1,4 +1,4 @@
-use std::{env, net::SocketAddr, path::PathBuf};
+use std::{env, net::SocketAddr, path::PathBuf, time::Duration};
 
 use axum::{
     extract::{DefaultBodyLimit, Path, State},
@@ -11,7 +11,10 @@ use rand::{distr::Alphanumeric, Rng};
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
-use sqlx::{sqlite::SqlitePoolOptions, Row, SqlitePool};
+use sqlx::{
+    sqlite::{SqliteConnectOptions, SqlitePoolOptions},
+    Row, SqlitePool,
+};
 use tower_governor::{
     governor::GovernorConfigBuilder, key_extractor::GlobalKeyExtractor, GovernorLayer,
 };
@@ -164,11 +167,17 @@ async fn main() -> anyhow::Result<()> {
         },
         "runtime configuration resolved"
     );
+    let sqlite_options = database_url
+        .parse::<SqliteConnectOptions>()?
+        .busy_timeout(Duration::from_secs(30));
+    // The deployment contract deliberately runs one SQLite writer. Keeping a
+    // single pool connection also avoids competing file locks during an Azure
+    // Files-backed revision handoff.
     let db = SqlitePoolOptions::new()
-        .max_connections(8)
-        .connect(database_url)
+        .max_connections(1)
+        .connect_with(sqlite_options)
         .await?;
-    sqlx::migrate!().run(&db).await?;
+    run_migrations(&db).await?;
     let state = AppState { db, build_sha };
     let app = app(state, dist);
     let port = env::var("PORT")
@@ -182,6 +191,31 @@ async fn main() -> anyhow::Result<()> {
         .with_graceful_shutdown(shutdown())
         .await?;
     Ok(())
+}
+
+async fn run_migrations(db: &SqlitePool) -> anyhow::Result<()> {
+    const ATTEMPTS: u8 = 6;
+    for attempt in 1..=ATTEMPTS {
+        match sqlx::migrate!().run(db).await {
+            Ok(()) => return Ok(()),
+            Err(error)
+                if attempt < ATTEMPTS
+                    && error
+                        .to_string()
+                        .to_ascii_lowercase()
+                        .contains("database is locked") =>
+            {
+                warn!(
+                    attempt,
+                    max_attempts = ATTEMPTS,
+                    "SQLite migration lock is busy; retrying"
+                );
+                tokio::time::sleep(Duration::from_secs(u64::from(attempt) * 2)).await;
+            }
+            Err(error) => return Err(error.into()),
+        }
+    }
+    unreachable!("migration retry loop always returns")
 }
 
 fn app(state: AppState, dist: PathBuf) -> Router {
@@ -695,5 +729,23 @@ mod tests {
             "public, max-age=31536000, immutable"
         );
         std::fs::remove_dir_all(fixture).unwrap();
+    }
+
+    #[tokio::test]
+    async fn migration_retry_helper_accepts_an_already_migrated_database() {
+        let db = SqlitePoolOptions::new()
+            .max_connections(1)
+            .connect("sqlite::memory:")
+            .await
+            .unwrap();
+        run_migrations(&db).await.unwrap();
+        run_migrations(&db).await.unwrap();
+        let lesson_table = sqlx::query_scalar::<_, i64>(
+            "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'lessons'",
+        )
+        .fetch_one(&db)
+        .await
+        .unwrap();
+        assert_eq!(lesson_table, 1);
     }
 }

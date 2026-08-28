@@ -35,7 +35,7 @@ patch=$(jq \
   '.properties.template.containers |= map(if .name == "app" then .volumeMounts = [{volumeName:$volumeName,mountPath:$mountPath}] else . end) |
    {properties:{template:{
      containers:.properties.template.containers,
-     scale:(.properties.template.scale + {minReplicas:$minReplicas,maxReplicas:$maxReplicas}),
+     scale:{minReplicas:$minReplicas,maxReplicas:$maxReplicas},
      volumes:[{name:$volumeName,storageType:"AzureFile",storageName:$storageName}]
    }}}' <<<"$app_json")
 
