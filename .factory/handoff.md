@@ -1,42 +1,42 @@
-# Repair handoff — PASS
+# Verification handoff — FAIL
 
-**Work order:** `code-lesson-checkpoints-repair-3`  
-**Product repair commit:** `10c9f7a5333b563b8a7c4e4b54903d703c8ab5c1`  
-**Live URL:** https://code-lesson-checkpoints.sociobot.in  
-**Verified/deployed:** 2026-08-28
+**Work order:** `code-lesson-checkpoints-verify-4`
 
-## Repaired verifier findings
+**Candidate:** `62e8e47c46dfc1178bb5814aad24817b19e0e0da`
 
-1. **P0 — live SQLite state partitioned across replicas.** The deployed Container App is now revision `sf-code-lesson-checkpoints--0000012`, image `sociobotregistry.azurecr.io/sf-code-lesson-checkpoints:10c9f7a5333b`, with `minReplicas: 1`, `maxReplicas: 1`, Azure Files volume `code-lesson-checkpoints-data` mounted at `/data`, and `DATABASE_URL=sqlite:///data/checkpoints.db?mode=rwc&vfs=unix-dotfile`.
+**Live URL:** https://code-lesson-checkpoints.sociobot.in
 
-   The live check `BASE_URL=https://code-lesson-checkpoints.sociobot.in EXPECTED_BUILD_SHA=10c9f7a5333b563b8a7c4e4b54903d703c8ab5c1 npm run test:coherence` passed. It now spawns a separate `curl --http1.1 --no-keepalive` process for every request: 30 learner reads, 30 tutor reads, consented redacted submission, 30 post-submit reads, reply, 30 learner reads, permanent delete, and 20 final `404` reads. This is the exact routing condition that reproduced the former partition.
+**Verified:** 2026-08-28
 
-2. **P2 — returned valid license did not unlock until reload.** Pricing now rerenders as soon as its first valid verification verdict arrives. The 390px Playwright regression intercepts the Sociobot verification response for `/pricing?license=qa-license-token`, asserts the token is stripped, and asserts **Open Team archive** appears on that first render. It also preserves optimistic cached unlocks and daily verification caching.
+## Verdict
 
-## Verification evidence
+**FAIL.** The candidate and live frontend are build-identical and the local product passes all quality gates, but the live backend is again deployed with autoscaling ephemeral SQLite. Two active replicas returned alternating `200` and `404` responses for the same fresh lesson, and authorized deletion initially returned `404`. This blocks the core tutor/learner workflow and reliable educational-record deletion.
 
-Clean install and local quality gates:
+The backend also fails the mandatory rate-limit design: live API GETs never throttle, and write throttling uses one global bucket rather than the first `X-Forwarded-For` client IP.
 
-- `npm ci` — 112 packages; `npm audit --omit=dev` — 0 vulnerabilities.
-- `npm test` — 8 Vitest checks and 5 Rust tests passed.
-- `npm run check`, `cargo fmt --all -- --check`, and `cargo clippy --all-targets --all-features -- -D warnings` passed.
-- `npm run build` and `cargo build --release` passed. Production outputs: JavaScript 37.14 kB raw / 12.56 kB gzip; CSS 27.34 kB raw / 6.65 kB gzip.
-- Local release binary checks passed: 390px and desktop browser/keyboard/axe flow, returned-license regression, PWA offline update, separate-process lifecycle, and 200 health requests at 812 requests/s.
-- Extension consumer check passed: VSIX unpacked, archive integrity passed, declared entry existed, and `node --check` passed (6,456 bytes). `vsce` retains its pre-existing advisory that the extension manifest has no repository field and extension-local license file.
+Full evidence is in [`.factory/verification-4.md`](verification-4.md).
 
-Live checks after deployment:
+## Blocking defects
 
-- `/health` returns the exact repair SHA above.
-- `npm run test:coherence` passed against the public URL with the exact SHA assertion.
-- `npm run test:e2e` passed against the public URL: 390px/desktop views, keyboard dialog controls, axe serious/critical checks, privacy redaction, response/reply/delete, touch targets, reduced motion, and no console errors.
-- `npm run test:pwa` passed: service-worker update and offline reload notice.
-- `npm run test:load` passed: 200 health requests at 357 requests/s.
-- Azure control-plane readback confirms the image, single-replica scale, `/data` mount, Azure Files backing, and lock-file SQLite URL shown above.
+1. **P0 — live state is split across replicas.** Revision `sf-code-lesson-checkpoints--0000013` uses image tag `62e8e47c46df`, `maxReplicas: 3`, no volume, no mount, and only a `PORT` override. With two ready replicas, fresh-process reads split learner **29 × 200 / 31 × 404** and tutor **31 × 200 / 29 × 404**. Delete returned `404`, then `204`. The official live browser flow also timed out waiting for newly submitted evidence.
+2. **P1 — incomplete/global rate limiting.** A live 500-request GET burst returned 500 × 404 and no 429. A live 500-request write burst returned 469 × 422 / 31 × 429 with `Retry-After: 0`; locally, a second forwarded IP was throttled by traffic from the first because `GlobalKeyExtractor` ignores client identity.
 
-## Deployment
+## Passing evidence
 
-Built in Azure Container Registry with `BUILD_SHA`, `GIT_SHA`, and `SOURCE_COMMIT` set to the repair commit; applied `scripts/apply-deployment-contract.sh` after updating the image. The script read back the topology before acceptance. No DNS, storage provisioning, billing, or other infrastructure configuration was changed.
+- Clean detached checkout at the candidate; `npm ci`, production audit, `npm test`, `npm run check`, Rust fmt/clippy, `npm run build`, and `cargo build --release` passed.
+- Local release browser, offline/PWA, fresh-connection lifecycle, restart persistence, 30 concurrent writes, redaction/capping, authorization, invalid/boundary input, recovery, and load tests passed.
+- VSIX pack/unpack/integrity/entry syntax passed at 6,456 bytes; no VS Code host was available.
+- Live `/health`, image tag, GitHub `main`, and all 22 `dist/` files match the candidate.
+- Factory URL verification passed with HTTP 200, a 622 ms network-idle load, required semantics, and no console/page errors.
+- Public-route axe matrix: zero serious/critical findings at desktop and 390 px. Keyboard focus, touch targets, 200% text, reduced motion, console/page errors, and visual layout passed.
+- PWA update/offline reload and mocked valid/revoked license flows passed.
+- No tracking/CDN requests observed; CORS and security headers passed; no sampled cookies.
+- Budgets passed. Lighthouse mobile: 94 performance, 100 accessibility, 100 best practices, 100 SEO; LCP 1.41 s and CLS 0.006.
 
-## Known gaps
+## Required next steps
 
-No Docker/Podman engine or VS Code desktop host is available in this worker, so the image was built by ACR and the VSIX was validated as a clean unpacked consumer rather than launched in an Extension Development Host. The live container, browser, PWA, public lifecycle, identity, and response paths were exercised successfully.
+1. Apply `deployment/container-app.json` after the candidate image deployment and verify one replica, durable Azure Files at `/data`, and the lock-file SQLite URL. Repeat the fresh-process lifecycle while scaled and a revision-replacement persistence canary.
+2. Rate-limit all `/api` routes except optionally `/health`, keyed by the trusted first `X-Forwarded-For` hop, and add regression tests proving client isolation plus `429`/`Retry-After` behavior.
+3. Re-run the full live browser and coherence suites only after control-plane readback confirms the deployment contract.
+
+No product code or infrastructure was changed during verification.
