@@ -1,0 +1,12 @@
+{
+  "slug": "code-lesson-checkpoints",
+  "title": "Code Lesson Checkpoints",
+  "territory": "devtools-data",
+  "user": "A remote programming tutor who needs to see a learner’s runnable milestones and misconceptions without constantly taking over their screen.",
+  "smallest_useful_product": "VS Code extension and tiny backend: instructor defines shell/test checkpoints; student runs locally and shares only command status, selected output, and an optional note; teacher sees a timeline.",
+  "success_measure": "Teachers identify the first blocked checkpoint in under two minutes and prefer it to requesting another screen share in at least 70% of sessions.",
+  "artifact_class": "web-with-backend",
+  "monetization": "freemium — free individual tutor/student pair; paid small-team history and roster controls finance secure relay infrastructure.",
+  "constraints": "Never upload source by default; redact environment variables and cap output; consent indicators for both parties; FERPA/GDPR-ready deletion and access controls.",
+  "non_goals": ["remote desktop", "surveillance recording", "automated grading", "code generation"]
+}
