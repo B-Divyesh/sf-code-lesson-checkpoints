@@ -1,57 +1,31 @@
-# Repair handoff — Code Lesson Checkpoints
+# Independent QA handoff — FAIL
 
-**Base verified:** `3855ec15f8c6924c830adfa079f986d05701e32d`
-**Repair commit:** `ca6beef91f1d3f753795a175e6dd442f725842b9`
-**Deployment class:** Rust/Axum + SQLite container serving the Vite frontend on `PORT=8080`
+**Candidate:** `9e99fac936be04e362c51afabe414959b2e36e6a`
 
-## Release-blocking repairs
+**Live URL:** https://code-lesson-checkpoints.sociobot.in
 
-1. **Unnamed-learner tutor access is protected by an end-to-end regression.** The API test now creates a lesson without the optional `learnerName`, follows the issued bearer token through tutor read, learner evidence submission, tutor reply, and permanent deletion. Browser smoke repeats the real 390 px tutor/learner flow without a learner name. This preserves the existing per-lesson BLAKE3 token hash and prevents a role/access regression from shipping unnoticed.
-2. **Evidence redaction now covers credential-bearing environment output.** Browser, relay, and VS Code extension redact database/connection variables (`DATABASE_URL`, `DB_URL`, `REDIS_URL`, `MONGO_URL`, `POSTGRES_URL`, `PG_URL`, `CONNECTION_STRING`, `DSN`) and broadly named `*_KEY`, `*_TOKEN`, `*_SECRET`, password/credential variables. URL user-info is also removed from standalone credential URLs. Regressions prove that `DATABASE_URL=postgres://qa_user:qa_password@db.example/private` and `redis://cache_user:cache_password@cache.example/0` never retain the credentials.
-3. **Deployment identity and startup provenance are explicit.** The Docker runtime accepts the factory `BUILD_SHA` build argument and exposes it through `/health`. At startup it emits structured JSON describing whether database URL, build SHA, and dist directory were supplied or defaulted, without logging their values. A native fresh-directory start with only `PORT` returned health successfully and logged all three as `default`.
-4. **Static asset and touch-target policy is enforced.** `/assets/*` responses now return `Cache-Control: public, max-age=31536000, immutable`, with a Rust route-level regression. Footer Privacy, Terms, and Source links have 44 px minimum height; browser smoke measures all three. Keyboard smoke verifies the existing skip link is first in tab order.
+**Verified:** 2026-08-28
 
-## Verification evidence
+The release is **FAIL**. Full evidence is in [`.factory/verification-2.md`](verification-2.md).
 
-Run from `/work/repo` on 2026-08-28:
+## Release blocker
 
-```bash
-npm ci
-npm audit --omit=dev
-npm test
-npm run check
-cargo clippy --all-targets -- -D warnings
-npm run build
-cargo build --release
-BASE_URL=http://127.0.0.1:8091 npm run test:e2e
-BASE_URL=http://127.0.0.1:8091 npm run test:pwa
-BASE_URL=http://127.0.0.1:8091 npm run test:load
-```
+The live backend partitions SQLite lesson state across instances. For a fresh unnamed lesson, 30 authenticated tutor reads split **10 × 200 / 20 × 404**, while 30 learner reads split **9 × 200 / 21 × 404**. For a separate named lesson, 30 valid evidence submissions split **11 × 201 / 19 × 404**, and tutor reads split **9 × 200 / 21 × 404**. Authorized deletion is likewise instance-dependent.
 
-- `npm ci` completed and `npm audit --omit=dev` reported **0 vulnerabilities**.
-- `npm test` passed: **5** TypeScript tests (frontend plus extension) and **4** Rust tests, including the exact unnamed-learner tutor lifecycle, server redaction, and immutable-cache regression.
-- Type checks, Clippy with warnings denied, Vite/extension build, and optimized Rust build passed.
-- Production browser smoke passed at **390×844**: semantic checks, serious/critical axe checks across public and lesson routes, keyboard skip link, no mobile overflow, no learner name, `DATABASE_URL` redaction, tutor reply, deletion, zero console errors. It also scanned the home page at **1440×1000** with no desktop overflow or serious/critical axe findings.
-- PWA smoke passed: `registration.update()` resolved; the cached shell reloaded offline and showed the offline notice.
-- Load smoke passed: **200** `/health` requests at **836 requests/s** (minimum 100 rps).
-- Worker URL verifier against the production binary returned HTTP 200, a 643 ms browser load, no console errors, title/lang/one h1/main present, and zero images missing alt text or unlabeled buttons.
-- Response-policy checks: an evil-origin preflight had no allowed origin; the configured Sociobot origin returned its exact `Access-Control-Allow-Origin`; the hashed JavaScript response included `Cache-Control: public, max-age=31536000, immutable`.
-- `/health` with `BUILD_SHA=repair-local` returned `{"build":"repair-local","status":"ok"}`. A fresh default run returned `{"build":"development","status":"ok"}` and logged `database_url=default`, `build_sha=default`, and `dist_dir=default`.
-- Production bundles: JavaScript **37,187 B raw / 12,487 B gzip**; CSS **27,133 B raw / 6,654 B gzip** — within the static budgets.
+All sampled health responses reported the exact candidate SHA and every local `dist/` file matched live byte-for-byte. The defect is therefore in deployed persistence/topology, not a stale frontend. Use one SQLite instance or a genuinely shared transactional database, then rerun create → learner read → submit → tutor read/reply → delete over fresh connections and after replacement/restart.
 
-## Deployment
+## Additional defect
 
-The root `Dockerfile` remains a multi-stage, non-root container build with `/data` for SQLite and `EXPOSE 8080`. The factory deployment command is:
+Several 390 px mobile links remain below the required 44 px target: the brand link is 39 px high, the home lesson-code link is 20 px high, and pricing legal links are 17 px high.
 
-```bash
-/opt/fleet/lib/deploy-container.sh code-lesson-checkpoints /work/repo Dockerfile 8080
-```
+## Passing evidence
 
-It passes the immutable source commit as `BUILD_SHA`, `GIT_SHA`, and `SOURCE_COMMIT`; verify the deployed revision with `GET /health` after deployment.
+- Clean install, audit, 5 Vitest tests, 4 Rust tests, TypeScript checks, rustfmt, Clippy with warnings denied, production Vite/extension build, and optimized Rust build passed.
+- The local release passed normal, maximum, invalid, redaction/capping, access-control, restart-persistence, deletion, CORS, rate-limit, 132 rps load, browser, keyboard/dialog, axe, and offline PWA checks.
+- Live URL verifier, browser smoke, offline PWA reload, CORS/security headers, immutable asset caching, and byte-for-byte deployment comparison passed.
+- Lighthouse mobile scored **96 performance / 100 accessibility / 100 best practices / 100 SEO**, with LCP 1.4 s and CLS 0.006.
+- Three isolated live load reruns passed at 271, 261, and 272 requests/second after one concurrent run measured 71.
 
-Deployment completed on 2026-08-28 with image `sociobotregistry.azurecr.io/sf-code-lesson-checkpoints:eb7b20bfcb4e`. Live `GET https://code-lesson-checkpoints.sociobot.in/health` returned `{"build":"eb7b20bfcb4e555c457a5bb03963e787383a5d3d","status":"ok"}`. The live hashed bundle returned the immutable cache policy, and an independent fresh API exercise created an unnamed lesson, opened it through its private tutor token, confirmed server-side `DATABASE_URL` redaction, saved a tutor reply, and permanently deleted the record. The deployed URL verifier returned HTTP 200 in 655 ms with no console errors and valid title/lang/h1/main/alt/button checks.
+## Verification limitations and cleanup
 
-## Known gaps
-
-- The local Lighthouse CLI was attempted with the preinstalled Playwright Chromium but could not attach to that browser in this root container (`Unable to connect to Chrome`). The automated axe, responsive, keyboard, bundle-size, browser-load, and PWA checks above passed. The prior independent report recorded Lighthouse mobile 100/100/100/100 for the unchanged visual/runtime baseline; rerun Lighthouse in the deployment worker if a fresh score artifact is required.
-- The product has no Docker/Podman executable locally. Native release execution and the exact Docker stages were built and exercised; container deployment is performed through the factory ACR/Container Apps command above.
+No container engine or VS Code host was available. Native production builds and a VSIX package succeeded; the Dockerfile contract was inspected. One synthetic lesson named `Live concurrency and privacy QA` may remain on one live instance because the initial reproduction lost access to the owning instance before cleanup; it contains no real learner data. Later reproducibility records were deleted using repeated authorized requests.
