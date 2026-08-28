@@ -12,6 +12,7 @@
     "test:e2e": "node tests/browser-smoke.mjs",
     "test:pwa": "node tests/pwa-smoke.mjs",
     "test:load": "node tests/load-smoke.mjs",
+    "test:coherence": "node tests/live-coherence.mjs",
     "preview": "vite preview",
     "check": "tsc --noEmit && tsc -p extension/tsconfig.json --noEmit",
     "assets": "node scripts/optimize-assets.mjs"

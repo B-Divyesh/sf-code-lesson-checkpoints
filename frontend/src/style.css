@@ -35,7 +35,7 @@ svg.icon { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-w
 .visually-hidden { position: absolute !important; width: 1px !important; height: 1px !important; padding: 0 !important; margin: -1px !important; overflow: hidden !important; clip: rect(0, 0, 0, 0) !important; white-space: nowrap !important; border: 0 !important; }
 
 .site-header { width: min(1200px, calc(100% - 48px)); min-height: 96px; margin: 0 auto; display: flex; align-items: center; justify-content: space-between; gap: 32px; border-bottom: 1px solid var(--line); }
-.brand { display: inline-flex; align-items: center; gap: 12px; color: var(--ink); text-decoration: none; font-size: 14px; line-height: 1.05; letter-spacing: .01em; }
+.brand { min-height: 44px; display: inline-flex; align-items: center; gap: 12px; color: var(--ink); text-decoration: none; font-size: 14px; line-height: 1.05; letter-spacing: .01em; }
 .brand strong { font-family: var(--display); font-size: 19px; font-weight: 700; }
 .brand-mark { width: 44px; height: 44px; display: grid; place-items: center; background: var(--sun); border: 1.5px solid var(--ink); border-radius: 50% 44% 48% 45%; box-shadow: 3px 3px 0 var(--ink); transform: rotate(-3deg); }
 .site-header nav, footer nav { display: flex; align-items: center; gap: 28px; }
@@ -70,7 +70,7 @@ p { font-size: 17px; line-height: 1.55; }
 .button.paper-button { background: var(--sun); }
 .button.danger { background: var(--clay); color: white; }
 .button.small { min-height: 44px; padding: 8px 14px; }
-.text-link { font-weight: 700; }
+.text-link { min-height: 44px; display: inline-flex; align-items: center; gap: 6px; font-weight: 700; }
 .trust-row { display: flex; gap: 20px; flex-wrap: wrap; margin: 0; padding: 0; list-style: none; color: var(--muted); font-size: 14px; }
 .trust-row li { display: flex; align-items: center; gap: 6px; }
 .trust-row .icon { width: 17px; }
@@ -251,6 +251,7 @@ dialog::backdrop { background: rgba(23,31,24,.72); }
 .restore-sheet form > div { display: grid; grid-template-columns: 1fr auto; gap: 8px; }
 .restore-sheet form > p { min-height: 24px; margin-top: 8px; color: var(--moss-dark); }
 .legal-callout { margin: 0 auto 90px; max-width: 920px; text-align: center; color: var(--muted); font-size: 14px; }
+.legal-callout a { min-width: 44px; min-height: 44px; padding: 0 4px; display: inline-flex; align-items: center; justify-content: center; }
 
 .archive-head { max-width: 780px; padding: 72px 0 44px; }
 .archive-head > p:last-of-type { max-width: 650px; color: var(--muted); }

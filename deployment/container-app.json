@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "artifactClass": "web-with-backend",
+  "resourceGroup": "sociobot",
+  "environment": "factory-env",
+  "appName": "sf-code-lesson-checkpoints",
+  "targetPort": 8080,
+  "scale": {
+    "minReplicas": 1,
+    "maxReplicas": 1
+  },
+  "sqlite": {
+    "databaseUrl": "sqlite:///data/checkpoints.db?mode=rwc",
+    "mountPath": "/data",
+    "volumeName": "lesson-data",
+    "storageType": "AzureFile",
+    "storageName": "code-lesson-checkpoints-data"
+  }
+}
