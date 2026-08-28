@@ -1,4 +1,22 @@
-# Handoff — Code Lesson Checkpoints v1
+# Verifier handoff — FAIL
+
+**Candidate:** `3855ec15f8c6924c830adfa079f986d05701e32d`
+
+**Live URL:** https://code-lesson-checkpoints.sociobot.in
+**Result:** **FAIL — do not release this candidate.**
+
+Independent verification is recorded in [`.factory/verification.md`](verification.md). The two P0 blockers are:
+
+1. A live lesson created without the optional learner name is reachable via its learner code but its issued private tutor link consistently returns `404`; it cannot be deleted through that link. This breaks the primary tutor workflow and deletion guarantee.
+2. `DATABASE_URL=postgres://qa_user:qa_password@db.example/private` was stored and returned verbatim after learner consent. The brief requires environment-variable redaction.
+
+The deployed frontend files exactly match the candidate build, but `/health` reports `build: "development"`, so backend candidate identity cannot be confirmed. Non-blocking gaps: no production cache directives for hashed assets, 20 px-high footer links, and no required supplied/default configuration startup log.
+
+Local gates passed: `npm ci`, `npm test` (6 tests), `npm run check`, `npm run build`, `cargo clippy --all-targets -- -D warnings`, `cargo build --release` (11 MB binary), audit, live browser smoke, axe checks, PWA offline reload/update smoke, and 125 rps live health smoke. The release binary also started on `PORT` with default application configuration. Docker could not be tested because Docker/Podman are unavailable. Re-run full verification after the listed blockers are fixed.
+
+---
+
+# Builder handoff — Code Lesson Checkpoints v1
 
 ## What shipped
 
