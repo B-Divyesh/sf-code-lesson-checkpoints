@@ -1,6 +1,11 @@
-const SECRET_PATTERN = /((?:api[_-]?key|token|secret|password)\s*[=:]\s*)([^\s]+)/gi;
+// Environment dumps often use connection-string names instead of the shorter
+// API_KEY form. Treat those assignments as secrets too: a database URL can
+// include both a username and password.
+const SECRET_NAME = '(?:api[_-]?key|token|secret|password|pass|pwd|credentials?|database(?:[_-]?url)?|(?:db|redis|mongo|postgres|pg)[_-]?url|connection[_-]?string|dsn)';
+const SECRET_PATTERN = new RegExp(`((?:${SECRET_NAME}|[a-z][a-z0-9_-]*?${SECRET_NAME})\\s*[=:]\\s*)([^\\s]+)`, 'gi');
 const AUTH_PATTERN = /(authorization\s*:\s*)(?:bearer\s+)?([^\s]+)/gi;
 const BEARER_PATTERN = /bearer\s+[a-z0-9._~+/=-]{12,}/gi;
+const URL_CREDENTIALS_PATTERN = /(\b[a-z][a-z0-9+.-]*:\/\/)(?:[^\s/@:]+(?::[^\s/@]*)?@)/gi;
 
 export function redactOutput(value: string, max = 8000): { text: string; redactions: number; trimmed: boolean } {
   let redactions = 0;
@@ -16,6 +21,10 @@ export function redactOutput(value: string, max = 8000): { text: string; redacti
     .replace(SECRET_PATTERN, (_match, prefix: string) => {
       redactions += 1;
       return `${prefix}[redacted]`;
+    })
+    .replace(URL_CREDENTIALS_PATTERN, (_match, prefix: string) => {
+      redactions += 1;
+      return `${prefix}[redacted]@`;
     });
   const characters = [...redacted];
   const trimmed = characters.length > max;

@@ -1,74 +1,55 @@
-# Verifier handoff — FAIL
+# Repair handoff — Code Lesson Checkpoints
 
-**Candidate:** `3855ec15f8c6924c830adfa079f986d05701e32d`
+**Base verified:** `3855ec15f8c6924c830adfa079f986d05701e32d`
+**Repair commit:** pending commit
+**Deployment class:** Rust/Axum + SQLite container serving the Vite frontend on `PORT=8080`
 
-**Live URL:** https://code-lesson-checkpoints.sociobot.in
-**Result:** **FAIL — do not release this candidate.**
+## Release-blocking repairs
 
-Independent verification is recorded in [`.factory/verification.md`](verification.md). The two P0 blockers are:
+1. **Unnamed-learner tutor access is protected by an end-to-end regression.** The API test now creates a lesson without the optional `learnerName`, follows the issued bearer token through tutor read, learner evidence submission, tutor reply, and permanent deletion. Browser smoke repeats the real 390 px tutor/learner flow without a learner name. This preserves the existing per-lesson BLAKE3 token hash and prevents a role/access regression from shipping unnoticed.
+2. **Evidence redaction now covers credential-bearing environment output.** Browser, relay, and VS Code extension redact database/connection variables (`DATABASE_URL`, `DB_URL`, `REDIS_URL`, `MONGO_URL`, `POSTGRES_URL`, `PG_URL`, `CONNECTION_STRING`, `DSN`) and broadly named `*_KEY`, `*_TOKEN`, `*_SECRET`, password/credential variables. URL user-info is also removed from standalone credential URLs. Regressions prove that `DATABASE_URL=postgres://qa_user:qa_password@db.example/private` and `redis://cache_user:cache_password@cache.example/0` never retain the credentials.
+3. **Deployment identity and startup provenance are explicit.** The Docker runtime accepts the factory `BUILD_SHA` build argument and exposes it through `/health`. At startup it emits structured JSON describing whether database URL, build SHA, and dist directory were supplied or defaulted, without logging their values. A native fresh-directory start with only `PORT` returned health successfully and logged all three as `default`.
+4. **Static asset and touch-target policy is enforced.** `/assets/*` responses now return `Cache-Control: public, max-age=31536000, immutable`, with a Rust route-level regression. Footer Privacy, Terms, and Source links have 44 px minimum height; browser smoke measures all three. Keyboard smoke verifies the existing skip link is first in tab order.
 
-1. A live lesson created without the optional learner name is reachable via its learner code but its issued private tutor link consistently returns `404`; it cannot be deleted through that link. This breaks the primary tutor workflow and deletion guarantee.
-2. `DATABASE_URL=postgres://qa_user:qa_password@db.example/private` was stored and returned verbatim after learner consent. The brief requires environment-variable redaction.
+## Verification evidence
 
-The deployed frontend files exactly match the candidate build, but `/health` reports `build: "development"`, so backend candidate identity cannot be confirmed. Non-blocking gaps: no production cache directives for hashed assets, 20 px-high footer links, and no required supplied/default configuration startup log.
-
-Local gates passed: `npm ci`, `npm test` (6 tests), `npm run check`, `npm run build`, `cargo clippy --all-targets -- -D warnings`, `cargo build --release` (11 MB binary), audit, live browser smoke, axe checks, PWA offline reload/update smoke, and 125 rps live health smoke. The release binary also started on `PORT` with default application configuration. Docker could not be tested because Docker/Podman are unavailable. Re-run full verification after the listed blockers are fixed.
-
----
-
-# Builder handoff — Code Lesson Checkpoints v1
-
-## What shipped
-
-- A complete tutor/learner relay: tutors create 1–12 runnable milestones; learners open a six-character code, copy commands, choose Passed or Blocked, review local secret redaction, consent, and share selected output plus an optional reflection; tutors see the first blocked checkpoint and reply to an exact attempt.
-- Private tutor access uses a 40-character random token. Only its BLAKE3 hash is stored. Learner access is scoped to a random code. Inputs are validated, request bodies are capped at 64 KB, evidence at 8,000 characters, and common credentials are redacted again server-side.
-- Tutors can export the complete record as JSON and permanently delete the lesson plus all evidence after a named confirmation.
-- A VS Code companion in `extension/` shows the exact tutor-defined command in a modal, executes it only after learner confirmation in the open workspace, displays the locally redacted/capped output, and asks again before sharing. It never reads or uploads source files.
-- Paid-unlock contract: $39 one-time Team archive buy link through Sociobot, return-token capture, `sb_license:code-lesson-checkpoints` storage, daily background verification, revoked/invalid handling, and paste-to-restore. A verified license opens a searchable local roster of private lesson links. The free Pair workflow, export, deletion, and accessibility remain ungated.
-- Rust 2021/Axum backend with SQLite migrations, parameterized queries, global write-rate limiting, CORS allowlist, CSP/security headers, Brotli/gzip responses, JSON logs, `/health` build SHA, graceful shutdown, and SPA/static serving from one process.
-- Vite/TypeScript responsive frontend with loading, empty, invalid-link, offline, and error states; keyboard forms/dialogs; visible focus; 44 px targets; reduced-motion behavior; privacy and terms pages; a service-worker shell; and no analytics or runtime CDN dependencies.
-- Original paper-cut diorama artwork generated for the product, reviewed, and served as responsive AVIF/WebP (largest variant 92 KB). Prompt, model/deployment, license, visual tokens, type, spacing, and motion rationale are in `.factory/design.md` and the asset sidecars.
-
-## Verification performed
-
-Run from `/work/repo`:
+Run from `/work/repo` on 2026-08-28:
 
 ```bash
+npm ci
+npm audit --omit=dev
 npm test
 npm run check
-npm run build
-npm run test:e2e          # with cargo run listening on 127.0.0.1:8080
-npm run test:load         # with the same local server
-npm audit
 cargo clippy --all-targets -- -D warnings
+npm run build
+cargo build --release
+BASE_URL=http://127.0.0.1:8091 npm run test:e2e
+BASE_URL=http://127.0.0.1:8091 npm run test:pwa
+BASE_URL=http://127.0.0.1:8091 npm run test:load
 ```
 
-Results on 2026-08-28:
+- `npm ci` completed and `npm audit --omit=dev` reported **0 vulnerabilities**.
+- `npm test` passed: **5** TypeScript tests (frontend plus extension) and **4** Rust tests, including the exact unnamed-learner tutor lifecycle, server redaction, and immutable-cache regression.
+- Type checks, Clippy with warnings denied, Vite/extension build, and optimized Rust build passed.
+- Production browser smoke passed at **390×844**: semantic checks, serious/critical axe checks across public and lesson routes, keyboard skip link, no mobile overflow, no learner name, `DATABASE_URL` redaction, tutor reply, deletion, zero console errors. It also scanned the home page at **1440×1000** with no desktop overflow or serious/critical axe findings.
+- PWA smoke passed: `registration.update()` resolved; the cached shell reloaded offline and showed the offline notice.
+- Load smoke passed: **200** `/health` requests at **836 requests/s** (minimum 100 rps).
+- Worker URL verifier against the production binary returned HTTP 200, a 643 ms browser load, no console errors, title/lang/one h1/main present, and zero images missing alt text or unlabeled buttons.
+- Response-policy checks: an evil-origin preflight had no allowed origin; the configured Sociobot origin returned its exact `Access-Control-Allow-Origin`; the hashed JavaScript response included `Cache-Control: public, max-age=31536000, immutable`.
+- `/health` with `BUILD_SHA=repair-local` returned `{"build":"repair-local","status":"ok"}`. A fresh default run returned `{"build":"development","status":"ok"}` and logged `database_url=default`, `build_sha=default`, and `dist_dir=default`.
+- Production bundles: JavaScript **37,187 B raw / 12,487 B gzip**; CSS **27,133 B raw / 6,654 B gzip** — within the static budgets.
 
-- Vitest: 3/3 passed (normalization, credential redaction, output cap).
-- Rust: 3/3 passed, including a full API create → learner read → evidence share → private tutor read → delete flow.
-- Browser smoke: passed at 390×844 for home semantics, all public routes, lesson creation, learner consent/share, secret redaction, tutor reply, deletion, horizontal overflow, and zero browser console errors.
-- axe-core Playwright scans: zero serious or critical issues on home, join, pricing, privacy, terms, lesson form, learner timeline, and tutor timeline.
-- Lighthouse mobile: Performance 100, Accessibility 100, Best Practices 100, SEO 100; FCP 0.9 s, LCP 1.7 s, CLS 0.006, TBT 0 ms, interactive 1.7 s.
-- Production bundles: initial JavaScript 36.92 KB (12.41 KB gzip), CSS 27.03 KB (6.62 KB gzip); Latin webfonts loaded by the page total about 71 KB; hero 49 KB AVIF or 93 KB WebP (16/29 KB at 720 px).
-- Load smoke: 200 `/health` requests at 697 requests/second locally.
-- `npm audit`: 0 known vulnerabilities.
-- Brotli response verified locally for the production JavaScript asset.
-- Visual review completed at 1440×1000 and 390×844.
+## Deployment
 
-## Build and deployment
-
-The reproducible build command is:
+The root `Dockerfile` remains a multi-stage, non-root container build with `/data` for SQLite and `EXPOSE 8080`. The factory deployment command is:
 
 ```bash
-npm ci && npm run build && cargo build --release
+/opt/fleet/lib/deploy-container.sh code-lesson-checkpoints /work/repo Dockerfile 8080
 ```
 
-`npm run build` places `index.html` at `dist/index.html` and compiles the extension entry at `extension/dist/extension.js`. The root multi-stage Dockerfile performs both builds, runs as the non-root `app` user, exposes port 8080, and stores SQLite at `/data/checkpoints.db`.
+It passes the immutable source commit as `BUILD_SHA`, `GIT_SHA`, and `SOURCE_COMMIT`; verify the deployed revision with `GET /health` after deployment.
 
-## Known gaps / factory follow-up
+## Known gaps
 
-- The container image could not be executed in this worker because no Docker/Podman binary is installed. The native release components and exact Docker build stages were verified independently.
-- The factory must register `code-lesson-checkpoints` with the Sociobot billing engine before checkout/verification can succeed in production. No product ID or payment-provider secret is hardcoded.
-- Team archive indexing is intentionally local to the licensed browser in v1. It does not synchronize private tutor links across devices; lesson records themselves remain in the secure relay. A future server-side roster should verify the license server-to-server before adding cross-device membership.
-- The extension is compiled and browser/API behavior is exercised, but a signed Marketplace/VSIX release is factory deployment work.
+- The local Lighthouse CLI was attempted with the preinstalled Playwright Chromium but could not attach to that browser in this root container (`Unable to connect to Chrome`). The automated axe, responsive, keyboard, bundle-size, browser-load, and PWA checks above passed. The prior independent report recorded Lighthouse mobile 100/100/100/100 for the unchanged visual/runtime baseline; rerun Lighthouse in the deployment worker if a fresh score artifact is required.
+- The product has no Docker/Podman executable locally. Native release execution and the exact Docker stages were built and exercised; container deployment is performed through the factory ACR/Container Apps command above.

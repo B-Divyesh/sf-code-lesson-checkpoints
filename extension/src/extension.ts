@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import { exec } from 'node:child_process';
 import { promisify } from 'node:util';
+import { redactAndCap } from './privacy';
 
 const execAsync = promisify(exec);
 const CODE_KEY = 'codeLesson.shareCode';
@@ -120,13 +121,6 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 
 function normalizeCode(value: string): string { return value.replace(/[^a-z0-9]/gi, '').toUpperCase().slice(0, 6); }
 function statusIcon(checkpoint: Checkpoint): string { return checkpoint.submissions[0]?.status === 'passed' ? '$(pass)' : checkpoint.submissions[0]?.status === 'blocked' ? '$(error)' : '$(circle-outline)'; }
-function redactAndCap(value: string): string {
-  const redacted = value
-    .replace(/(authorization\s*:\s*)(?:bearer\s+)?([^\s]+)/gi, '$1[redacted]')
-    .replace(/bearer\s+[a-z0-9._~+/=-]{12,}/gi, 'Bearer [redacted]')
-    .replace(/((?:api[_-]?key|token|secret|password)\s*[=:]\s*)([^\s]+)/gi, '$1[redacted]');
-  return [...redacted].slice(0, 8000).join('') + (redacted.length > 8000 ? '\n… [output trimmed]' : '');
-}
 function showError(error: unknown): void { void vscode.window.showErrorMessage(error instanceof Error ? error.message : 'The checkpoint request failed. Try again.'); }
 
 export function deactivate(): void {}

@@ -25,6 +25,13 @@ try {
   assert.match(await page.title(), /Code Lesson Checkpoints/);
   assert.equal(await page.locator('img:not([alt])').count(), 0);
   assert.equal((await page.locator('body').evaluate((body) => body.scrollWidth <= innerWidth)), true, 'home page overflows at 390px');
+  await page.keyboard.press('Tab');
+  assert.equal(await page.locator('.skip-link').evaluate((element) => document.activeElement === element), true, 'keyboard reaches the skip link first');
+  const footerTargets = await page.locator('footer nav a').evaluateAll((links) => links.map((link) => {
+    const box = link.getBoundingClientRect();
+    return box.width >= 44 && box.height >= 44;
+  }));
+  assert.deepEqual(footerTargets, [true, true, true], 'footer links meet the 44 px touch target');
   await assertAccessible(page, 'home page');
 
   for (const route of ['/join', '/pricing', '/privacy', '/terms']) {
@@ -36,7 +43,6 @@ try {
   await page.goto(`${baseURL}/new`);
   await assertAccessible(page, 'lesson form');
   await page.getByLabel('Lesson title').fill('Async debugging');
-  await page.getByLabel('Learner name').fill('Sam');
   await page.getByRole('button', { name: /Create lesson path/ }).click();
   await page.waitForURL(/\/lesson\//);
   await page.getByText('Your lesson path is ready.').waitFor();
@@ -49,12 +55,12 @@ try {
   await learner.getByRole('button', { name: /Share a run/ }).first().click();
   const dialog = learner.getByRole('dialog');
   await dialog.getByLabel('Blocked').check();
-  await dialog.getByLabel(/Selected terminal output/).fill('API_KEY=must-not-leak\nExpected 200 but got 401');
+  await dialog.getByLabel(/Selected terminal output/).fill('DATABASE_URL=postgres://qa_user:qa_password@db.example/private\nExpected 200 but got 401');
   await dialog.getByLabel(/What do you think/).fill('The request may be missing its header.');
   await dialog.getByLabel(/I reviewed this evidence/).check();
   await dialog.getByRole('button', { name: /Share this run/ }).click();
-  await learner.getByText('API_KEY=[redacted]').waitFor();
-  assert.equal(await learner.getByText('must-not-leak').count(), 0);
+  await learner.getByText('DATABASE_URL=[redacted]').waitFor();
+  assert.equal(await learner.getByText('qa_password').count(), 0);
 
   await page.reload();
   await page.getByText('First block at checkpoint 1').waitFor();
@@ -69,6 +75,13 @@ try {
   await page.getByRole('textbox', { name: 'Confirmation', exact: true }).fill('DELETE');
   await page.getByRole('button', { name: 'Delete lesson permanently' }).click();
   await page.waitForURL(`${baseURL}/?deleted=1`);
+
+  const desktop = await browser.newContext({ viewport: { width: 1440, height: 1000 } });
+  const desktopPage = await desktop.newPage();
+  await desktopPage.goto(baseURL, { waitUntil: 'networkidle' });
+  assert.equal((await desktopPage.locator('body').evaluate((body) => body.scrollWidth <= innerWidth)), true, 'home page overflows at desktop');
+  await assertAccessible(desktopPage, 'desktop home page');
+  await desktop.close();
 
   assert.deepEqual(consoleErrors, [], `browser console errors: ${consoleErrors.join('; ')}`);
   console.log('Browser smoke passed: mobile semantics, create, share, redact, reply, delete, no console errors.');

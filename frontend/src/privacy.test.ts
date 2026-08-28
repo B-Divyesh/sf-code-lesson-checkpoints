@@ -9,6 +9,15 @@ describe('privacy helpers', () => {
     expect(result.redactions).toBe(2);
   });
 
+  it('redacts broad environment connection variables and URL credentials', () => {
+    const result = redactOutput('DATABASE_URL=postgres://qa_user:qa_password@db.example/private\nconnect redis://cache_user:cache_password@cache.example/0');
+    expect(result.text).toBe('DATABASE_URL=[redacted]\nconnect redis://[redacted]@cache.example/0');
+    expect(result.text).not.toContain('qa_user');
+    expect(result.text).not.toContain('qa_password');
+    expect(result.text).not.toContain('cache_password');
+    expect(result.redactions).toBe(2);
+  });
+
   it('normalizes codes pasted with punctuation', () => {
     expect(normalizeShareCode('ab-12 cd')).toBe('AB12CD');
   });

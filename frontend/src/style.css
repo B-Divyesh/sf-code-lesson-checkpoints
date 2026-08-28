@@ -95,6 +95,7 @@ footer { width: min(1200px, calc(100% - 48px)); min-height: 160px; margin: 0 aut
 footer p { font-size: 14px; }
 footer p span, .made-note { color: var(--muted); }
 .made-note { text-align: right; }
+footer nav a { min-height: 44px; display: inline-flex; align-items: center; color: var(--ink); font-weight: 700; }
 
 .form-intro { padding: 72px 0 42px; max-width: 780px; }
 .form-intro > p:last-child { max-width: 650px; color: var(--muted); }

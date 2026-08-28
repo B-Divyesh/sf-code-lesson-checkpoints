@@ -126,22 +126,50 @@ struct ReplyBody {
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     tracing_subscriber::fmt()
-        .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
+        .with_env_filter(
+            tracing_subscriber::EnvFilter::try_from_default_env().unwrap_or_else(|_| "info".into()),
+        )
         .json()
         .init();
 
-    let database_url =
-        env::var("DATABASE_URL").unwrap_or_else(|_| "sqlite://checkpoints.db?mode=rwc".into());
+    let supplied_database_url = env::var("DATABASE_URL").ok();
+    let database_url = supplied_database_url
+        .as_deref()
+        .unwrap_or("sqlite://checkpoints.db?mode=rwc");
+    let supplied_build_sha = env::var("BUILD_SHA").ok();
+    let build_sha = supplied_build_sha
+        .as_deref()
+        .unwrap_or("development")
+        .to_owned();
+    let supplied_dist_dir = env::var("DIST_DIR").ok();
+    let dist = PathBuf::from(supplied_dist_dir.as_deref().unwrap_or("dist"));
+    // Do not log values: DATABASE_URL can itself contain credentials. This
+    // single startup record makes the container's configuration provenance
+    // observable without exposing a secret.
+    info!(
+        database_url = if supplied_database_url.is_some() {
+            "supplied"
+        } else {
+            "default"
+        },
+        build_sha = if supplied_build_sha.is_some() {
+            "supplied"
+        } else {
+            "default"
+        },
+        dist_dir = if supplied_dist_dir.is_some() {
+            "supplied"
+        } else {
+            "default"
+        },
+        "runtime configuration resolved"
+    );
     let db = SqlitePoolOptions::new()
         .max_connections(8)
-        .connect(&database_url)
+        .connect(database_url)
         .await?;
     sqlx::migrate!().run(&db).await?;
-    let state = AppState {
-        db,
-        build_sha: env::var("BUILD_SHA").unwrap_or_else(|_| "development".into()),
-    };
-    let dist = PathBuf::from(env::var("DIST_DIR").unwrap_or_else(|_| "dist".into()));
+    let state = AppState { db, build_sha };
     let app = app(state, dist);
     let port = env::var("PORT")
         .ok()
@@ -170,6 +198,12 @@ fn app(state: AppState, dist: PathBuf) -> Router {
         .allow_headers([header::AUTHORIZATION, header::CONTENT_TYPE]);
     let index = dist.join("index.html");
     let static_files = ServeDir::new(&dist).fallback(ServeFile::new(index));
+    let immutable_assets = Router::new()
+        .fallback_service(ServeDir::new(dist.join("assets")))
+        .layer(SetResponseHeaderLayer::overriding(
+            header::CACHE_CONTROL,
+            HeaderValue::from_static("public, max-age=31536000, immutable"),
+        ));
     let mut rate_builder = GovernorConfigBuilder::default();
     rate_builder
         .per_millisecond(10)
@@ -187,6 +221,7 @@ fn app(state: AppState, dist: PathBuf) -> Router {
         .route("/api/lessons/code/{code}/checkpoints/{checkpoint_id}/submissions", post(submit_evidence))
         .route("/api/tutor/lessons/{id}", get(get_tutor_lesson).delete(delete_lesson))
         .route("/api/tutor/submissions/{id}/reply", put(reply_to_submission))
+        .nest("/assets", immutable_assets)
         .fallback_service(static_files)
         .layer(DefaultBodyLimit::max(64 * 1024))
         .layer(GovernorLayer::new(rate_limit))
@@ -473,14 +508,17 @@ async fn create_unique_code(db: &SqlitePool) -> ApiResult<String> {
 }
 
 fn redact_and_cap(value: &str, max: usize) -> String {
-    let secret = Regex::new(r"(?i)((?:api[_-]?key|token|secret|password)\s*[=:]\s*)([^\s]+)")
+    let secret = Regex::new(r"(?i)((?:(?:api[_-]?key|token|secret|password|pass|pwd|credentials?|database(?:[_-]?url)?|(?:db|redis|mongo|postgres|pg)[_-]?url|connection[_-]?string|dsn)|[a-z][a-z0-9_-]*?(?:api[_-]?key|token|secret|password|pass|pwd|credentials?|database(?:[_-]?url)?|(?:db|redis|mongo|postgres|pg)[_-]?url|connection[_-]?string|dsn))\s*[=:]\s*)([^\s]+)")
         .expect("valid secret regex");
     let authorization = Regex::new(r"(?i)(authorization\s*:\s*)(?:bearer\s+)?([^\s]+)")
         .expect("valid authorization regex");
     let bearer = Regex::new(r"(?i)bearer\s+[a-z0-9._~+/=-]{12,}").expect("valid bearer regex");
+    let url_credentials = Regex::new(r"(?i)(\b[a-z][a-z0-9+.-]*://)(?:[^\s/@:]+(?::[^\s/@]*)?@)")
+        .expect("valid URL credential regex");
     let cleaned = authorization.replace_all(value, "$1[redacted]");
     let cleaned = bearer.replace_all(&cleaned, "Bearer [redacted]");
     let cleaned = secret.replace_all(&cleaned, "$1[redacted]");
+    let cleaned = url_credentials.replace_all(&cleaned, "$1[redacted]@");
     let mut result: String = cleaned.chars().take(max).collect();
     if cleaned.chars().count() > max {
         result.push_str("\n… [output trimmed]");
@@ -517,10 +555,13 @@ mod tests {
 
     #[test]
     fn redacts_common_secrets_and_caps_output() {
-        let value = "API_KEY=supersecret\nAuthorization: Bearer abcdefghijklmnopqrstuvwxyz\nok";
+        let value = "API_KEY=supersecret\nAuthorization: Bearer abcdefghijklmnopqrstuvwxyz\nDATABASE_URL=postgres://qa_user:qa_password@db.example/private\nredis://cache_user:cache_password@cache.example/0\nok";
         let redacted = redact_and_cap(value, 200);
         assert!(!redacted.contains("supersecret"));
         assert!(!redacted.contains("abcdefghijklmnopqrstuvwxyz"));
+        assert!(!redacted.contains("qa_user"));
+        assert!(!redacted.contains("qa_password"));
+        assert!(!redacted.contains("cache_password"));
         assert!(redacted.contains("[redacted]"));
     }
 
@@ -530,7 +571,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn lesson_flow_round_trips_without_source_files() {
+    async fn unnamed_lesson_tutor_link_can_read_reply_and_delete() {
         let db = SqlitePoolOptions::new()
             .max_connections(1)
             .connect("sqlite::memory:")
@@ -545,7 +586,7 @@ mod tests {
             PathBuf::from("dist"),
         );
         let create = Request::builder().method("POST").uri("/api/lessons").header("content-type", "application/json")
-            .body(Body::from(r#"{"title":"HTTP debugging","learnerName":"Sam","checkpoints":[{"title":"Run tests","command":"npm test","successHint":"Tests pass"}]}"#)).unwrap();
+            .body(Body::from(r#"{"title":"HTTP debugging","checkpoints":[{"title":"Run tests","command":"npm test","successHint":"Tests pass"}]}"#)).unwrap();
         let response = service.clone().oneshot(create).await.unwrap();
         assert_eq!(response.status(), StatusCode::CREATED);
         let created: Value =
@@ -564,10 +605,11 @@ mod tests {
         let lesson: Value =
             serde_json::from_slice(&to_bytes(response.into_body(), 64 * 1024).await.unwrap())
                 .unwrap();
+        assert!(lesson["learnerName"].is_null());
         let checkpoint_id = lesson["checkpoints"][0]["id"].as_str().unwrap();
 
         let submit = Request::builder().method("POST").uri(format!("/api/lessons/code/{code}/checkpoints/{checkpoint_id}/submissions"))
-            .header("content-type", "application/json").body(Body::from(r#"{"status":"blocked","output":"API_KEY=never-store-this","note":"I expected green tests","consented":true}"#)).unwrap();
+            .header("content-type", "application/json").body(Body::from(r#"{"status":"blocked","output":"DATABASE_URL=postgres://qa_user:qa_password@db.example/private","note":"I expected green tests","consented":true}"#)).unwrap();
         assert_eq!(
             service.clone().oneshot(submit).await.unwrap().status(),
             StatusCode::CREATED
@@ -585,11 +627,28 @@ mod tests {
                 .unwrap();
         assert_eq!(
             lesson["checkpoints"][0]["submissions"][0]["output"],
-            "API_KEY=[redacted]"
+            "DATABASE_URL=[redacted]"
         );
         assert_eq!(
             lesson["checkpoints"][0]["submissions"][0]["note"],
             "I expected green tests"
+        );
+
+        let submission_id = lesson["checkpoints"][0]["submissions"][0]["id"]
+            .as_str()
+            .unwrap();
+        let reply = Request::builder()
+            .method("PUT")
+            .uri(format!("/api/tutor/submissions/{submission_id}/reply"))
+            .header("authorization", format!("Bearer {token}"))
+            .header("content-type", "application/json")
+            .body(Body::from(
+                r#"{"reply":"Check your database configuration."}"#,
+            ))
+            .unwrap();
+        assert_eq!(
+            service.clone().oneshot(reply).await.unwrap().status(),
+            StatusCode::OK
         );
 
         let delete = Request::builder()
@@ -602,5 +661,39 @@ mod tests {
             service.oneshot(delete).await.unwrap().status(),
             StatusCode::NO_CONTENT
         );
+    }
+
+    #[tokio::test]
+    async fn hashed_assets_receive_an_immutable_cache_policy() {
+        let fixture = std::env::temp_dir().join(format!("clc-assets-{}", Uuid::new_v4()));
+        let assets = fixture.join("assets");
+        std::fs::create_dir_all(&assets).unwrap();
+        std::fs::write(assets.join("index-ABC123.js"), "console.log('fixture')").unwrap();
+        let service = app(
+            AppState {
+                db: SqlitePoolOptions::new()
+                    .max_connections(1)
+                    .connect("sqlite::memory:")
+                    .await
+                    .unwrap(),
+                build_sha: "test".into(),
+            },
+            fixture.clone(),
+        );
+        let response = service
+            .oneshot(
+                Request::builder()
+                    .uri("/assets/index-ABC123.js")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+        assert_eq!(
+            response.headers().get(header::CACHE_CONTROL).unwrap(),
+            "public, max-age=31536000, immutable"
+        );
+        std::fs::remove_dir_all(fixture).unwrap();
     }
 }
