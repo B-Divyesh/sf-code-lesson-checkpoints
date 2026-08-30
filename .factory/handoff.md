@@ -1,7 +1,7 @@
 # Repair handoff — PASS
 
 **Work order:** `code-lesson-checkpoints-repair-8`
-**Released candidate:** `85f1e51fac14b2a01d8da25ef34fd850d42c4a5e`
+**Released candidate:** `460762e99d1d2414fc0578b1627f913f58b5664e`
 **Public URL:** `https://code-lesson-checkpoints.sociobot.in`
 **Verified:** 2026-08-30 UTC
 
@@ -39,7 +39,7 @@ only; its previous value was never read.
   Clippy with warnings denied).
 - `npm run build` — PASS; `dist/` emitted. Initial JS is 42.92 kB raw /
   13.85 kB gzip and CSS is 28.77 kB raw / 6.87 kB gzip.
-- `BUILD_SHA=85f1e51fac14b2a01d8da25ef34fd850d42c4a5e cargo build --release`
+- `BUILD_SHA=460762e99d1d2414fc0578b1627f913f58b5664e cargo build --release`
   — PASS.
 - `npm run test:package` — PASS; VSIX packaged and consumer syntax checked.
 - Local `npm run test:claims`, `npm run test:e2e`, `npm run test:pwa`,
@@ -52,21 +52,21 @@ only; its previous value was never read.
 ## Live verification
 
 - `GET /health` returned
-  `{"build":"85f1e51fac14b2a01d8da25ef34fd850d42c4a5e","status":"ok"}`.
-- Product app/revision readback: revision `sf-code-lesson-checkpoints--0000024`
+  `{"build":"460762e99d1d2414fc0578b1627f913f58b5664e","database":"sqlite","status":"ok"}`.
+- Product app/revision readback: revision `sf-code-lesson-checkpoints--0000025`
   is the sole active, healthy `RunningAtMaxScale` revision; its template has
   one `/data` mount, `minReplicas: 1`, `maxReplicas: 1`, and environment name
   `PORT` only. The settled replica list count is `1`.
-- Live persistence canary: created a synthetic lesson, restarted revision
-  `0000024`, read it as learner (`200`) and tutor (`200`), then authorized
+- Live persistence canary: created a synthetic lesson, restarted the active
+  revision, read it as learner (`200`) and tutor (`200`), then authorized
   deletion (`204`). The synthetic record was removed.
 - `BASE_URL=https://code-lesson-checkpoints.sociobot.in`
-  `EXPECTED_BUILD_SHA=85f1e51fac14b2a01d8da25ef34fd850d42c4a5e`
+  `EXPECTED_BUILD_SHA=460762e99d1d2414fc0578b1627f913f58b5664e`
   `COHERENCE_CYCLES=4 npm run test:coherence` — PASS.
 - Live `npm run test:e2e`, `npm run test:pwa`, `npm run test:claims`, and
   `npm run test:load` — PASS. All eight listed claims passed; the live load
-  smoke completed 200 health requests at 351 requests/second.
-- Factory `verify-url.sh` — PASS: HTTP 200, 605 ms load, no console errors,
+  smoke completed 200 health requests at 350 requests/second.
+- Factory `verify-url.sh` — PASS: HTTP 200, 602 ms load, no console errors,
   `lang=en`, one h1, main landmark, and no missing image alt text. Response
   headers include CSP with `frame-ancestors 'none'`, `nosniff`, and strict
   origin referrer policy.
