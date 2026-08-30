@@ -18,23 +18,39 @@ min_replicas=$(jq -r '.scale.minReplicas' "$contract")
 max_replicas=$(jq -r '.scale.maxReplicas' "$contract")
 revision_mode=$(jq -r '.activeRevisionsMode' "$contract")
 
-# The only connection string is retrieved at deployment time and stored as a
-# Container Apps secret. It is never added to source, logs, or an ARM patch.
-database_url=$(az keyvault secret show \
-  --vault-name "$key_vault" \
-  --name "$key_vault_secret" \
-  --query value \
-  --output tsv)
-az containerapp secret set \
-  --resource-group "$resource_group" \
-  --name "$app_name" \
-  --secrets "$container_secret=$database_url" \
-  --output none
-unset database_url
-
 app_json=$(az containerapp show --resource-group "$resource_group" --name "$app_name" --output json)
 app_id=$(jq -r '.id' <<<"$app_json")
 api_version=2024-03-01
+
+# The connection string travels from Key Vault to the management API through
+# a mode-600 FIFO. It is not interpolated into a shell command, source file,
+# log, process list, or ARM patch argument.
+secret_payload_dir=$(mktemp -d)
+secret_payload="$secret_payload_dir/container-app-secret.json"
+mkfifo -m 600 "$secret_payload"
+cleanup_secret_payload() {
+  rm -f "$secret_payload"
+  rmdir "$secret_payload_dir" 2>/dev/null || true
+}
+trap cleanup_secret_payload EXIT
+(
+  az keyvault secret show \
+    --vault-name "$key_vault" \
+    --name "$key_vault_secret" \
+    --query value \
+    --output tsv \
+    | jq -Rs --arg name "$container_secret" \
+      '{properties:{configuration:{secrets:[{name:$name,value:(rtrimstr("\n"))}]}}}' \
+      > "$secret_payload"
+) &
+secret_writer=$!
+az rest \
+  --method patch \
+  --url "https://management.azure.com${app_id}?api-version=${api_version}" \
+  --body "@$secret_payload" \
+  --output none
+wait "$secret_writer"
+
 patch=$(jq \
   --arg containerSecret "$container_secret" \
   --arg revisionMode "$revision_mode" \
