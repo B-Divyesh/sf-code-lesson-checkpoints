@@ -257,14 +257,21 @@ fn default_dist_dir() -> PathBuf {
 }
 
 async fn connect_state(state_file: &FilePath) -> anyhow::Result<SqlitePool> {
+    // Azure Files can retain an advisory SQLite lock while an unhealthy
+    // revision is being torn down. There is exactly one active product
+    // replica (enforced by the deployment contract), so the built-in
+    // `unix-none` VFS can disable advisory file locks safely here and lets
+    // the single writer recover from that stale mount handle. Never use this
+    // VFS with more than one writer.
     let connection = format!("sqlite://{}?mode=rwc", state_file.display());
     // Do not set a journal mode while opening the connection. In particular,
     // WAL setup has to take an exclusive SQLite lock and Azure Files can
     // retain that lock during a revision hand-off. Opening first lets the
-    // retryable migration phase perform the rollback-journal transition.
+    // migration phase use the rollback journal instead.
     let options = SqliteConnectOptions::from_str(&connection)?
         .create_if_missing(true)
         .foreign_keys(true)
+        .vfs("unix-none")
         .busy_timeout(Duration::from_secs(5));
     Ok(SqlitePoolOptions::new()
         .max_connections(1)
@@ -1248,9 +1255,9 @@ mod tests {
         // Reproduce the release failure exactly: a competing SQLite process
         // holds the database exclusively, so connection-time WAL setup
         // returns `(code: 5) database is locked`. The repaired startup opens
-        // without changing journal mode, waits for the lock in the retryable
-        // migration phase, then explicitly uses the Azure-Files-safe DELETE
-        // rollback journal.
+        // without changing journal mode, bypasses only the stale advisory
+        // mount lock in the enforced single-writer topology, then explicitly
+        // uses the Azure-Files-safe DELETE rollback journal.
         let mount_dir = std::env::temp_dir().join(format!("clc-lock-mount-{}", Uuid::new_v4()));
         std::fs::create_dir_all(&mount_dir).unwrap();
         let state_file = state_file_for(&mount_dir, true);
@@ -1292,25 +1299,23 @@ mod tests {
         let repaired = connect_state(&state_file)
             .await
             .expect("opening without a journal transition is not blocked");
-        let migration = tokio::spawn({
-            let repaired = repaired.clone();
-            async move { run_sqlite_migrations(&repaired).await }
-        });
-        tokio::time::sleep(Duration::from_millis(50)).await;
+        repaired.close().await;
         sqlx::query("COMMIT").execute(&mut *holder).await.unwrap();
         drop(holder);
-        migration
+        initial.close().await;
+
+        let recovered = connect_state(&state_file)
             .await
-            .unwrap()
-            .expect("startup retries the journal transition after the lock clears");
+            .expect("the replacement single writer opens after the stale handle releases");
+        run_sqlite_migrations(&recovered)
+            .await
+            .expect("the replacement single writer migrates in rollback-journal mode");
         let mode: String = sqlx::query_scalar("PRAGMA journal_mode")
-            .fetch_one(&repaired)
+            .fetch_one(&recovered)
             .await
             .unwrap();
         assert_eq!(mode.to_ascii_lowercase(), "delete");
-
-        repaired.close().await;
-        initial.close().await;
+        recovered.close().await;
         let _ = std::fs::remove_file(&state_file);
         let _ = std::fs::remove_file(state_file.with_extension("db-journal"));
         let _ = std::fs::remove_dir(mount_dir);

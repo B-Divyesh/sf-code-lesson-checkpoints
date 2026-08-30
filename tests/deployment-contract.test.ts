@@ -88,6 +88,8 @@ describe('durable single-service deployment contract', () => {
     expect(deploymentScript).toContain('--replace-env-vars PORT=8080');
     expect(deploymentScript).toContain('env:[{name:"PORT",value:"8080"}]');
     expect(deploymentScript).not.toContain('app_json=');
+    expect(deploymentScript).toContain('mounted_stale_revisions');
+    expect(deploymentScript).toContain('az containerapp revision deactivate');
     expect(deploymentScript).toContain('replica_count');
     expect(deploymentScript).toContain('[[ "$replica_count" == "$min_replicas" ]]');
     expect(deploymentScript).toContain('.volumeMounts == [{volumeName:$volume,mountPath:$dataDir}]');

@@ -23,6 +23,25 @@ if [[ -z "$image" ]]; then
   exit 1
 fi
 
+# A non-ready mounted revision can retain an Azure Files advisory lock after
+# it stops serving. Retire only stale *mounted* revisions before creating the
+# next candidate, while leaving an unmounted healthy revision available until
+# the mounted candidate proves ready. This keeps SQLite to one writer.
+mounted_stale_revisions=$(az containerapp revision list \
+  --resource-group "$resource_group" \
+  --name "$app_name" \
+  --query "[?properties.active && contains((properties.template.containers[0].volumeMounts || \`[]\`)[].mountPath, '$data_dir')].name" \
+  --output tsv)
+while IFS= read -r stale_revision; do
+  if [[ -n "$stale_revision" ]]; then
+    az containerapp revision deactivate \
+      --resource-group "$resource_group" \
+      --name "$app_name" \
+      --revision "$stale_revision" \
+      --output none
+  fi
+done <<<"$mounted_stale_revisions"
+
 # Replace the full application environment without retrieving it first. This
 # removes the stale connection setting without ever reading, interpolating, or
 # logging its value. The service is designed to run with only PORT.
