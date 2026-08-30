@@ -40,5 +40,19 @@
     "where": "landing footer, privacy page, README",
     "test": "npm run test:claims -- --grep @claim:no-tracking",
     "sandbox": "fresh browser context; record every request across / and /demo; assert same-origin only and no file input"
+  },
+  {
+    "id": "team-roster-history",
+    "claim": "Team archive shows a searchable learner roster and the saved lesson history held on this device.",
+    "where": "Team archive pricing, Team archive page, terms, README",
+    "test": "npm run test:claims -- --grep @claim:team-roster-history",
+    "sandbox": "fresh browser context with a synthetic cached Team license and three local lesson-link records; load /team, search by learner and lesson, then reload to assert the saved history remains visible"
+  },
+  {
+    "id": "permanent-lesson-deletion",
+    "claim": "A tutor can permanently delete a lesson and all of its checkpoints, runs, notes, and replies.",
+    "where": "tutor delete confirmation, privacy page, README",
+    "test": "npm run test:claims -- --grep @claim:permanent-lesson-deletion",
+    "sandbox": "fresh synthetic lesson with a consented run and tutor reply; delete with its private tutor token; assert both learner and tutor reads return 404"
   }
 ]

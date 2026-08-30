@@ -138,6 +138,69 @@ const claims = {
     assert.deepEqual([...new Set(requests.map((url) => new URL(url).origin))], [new URL(baseURL).origin]);
     assert.equal(await page.locator('input[type="file"]').count(), 0);
   }),
+
+  '@claim:team-roster-history': async () => inContext(async (_context, page) => {
+    const records = [
+      { id: 'lesson-2026-08', title: 'HTTP request review', learnerName: 'Maya Chen', shareCode: 'MAYA08', tutorToken: 'private-maya', createdAt: '2026-08-12T10:00:00.000Z' },
+      { id: 'lesson-2026-07', title: 'Schema migration review', learnerName: 'Maya Chen', shareCode: 'MAYA07', tutorToken: 'private-maya-old', createdAt: '2026-07-10T10:00:00.000Z' },
+      { id: 'lesson-2026-06', title: 'Async cleanup', learnerName: 'Jon Bell', shareCode: 'JON006', tutorToken: 'private-jon', createdAt: '2026-06-08T10:00:00.000Z' },
+    ];
+    await page.goto(baseURL, { waitUntil: 'networkidle' });
+    await page.evaluate((archive) => {
+      localStorage.setItem('sb_license:code-lesson-checkpoints', 'cached-team-license');
+      localStorage.setItem('sb_license_verdict:code-lesson-checkpoints', JSON.stringify({ at: Date.now(), verdict: { valid: true, reason: 'ok' } }));
+      localStorage.setItem('clc:archive', JSON.stringify(archive));
+    }, records);
+    await page.goto(`${baseURL}/team`, { waitUntil: 'networkidle' });
+    await page.getByRole('heading', { name: 'Your teaching roster.' }).waitFor();
+    assert.deepEqual(await page.locator('.archive-row h2').allTextContents(), [
+      'HTTP request review',
+      'Schema migration review',
+      'Async cleanup',
+    ]);
+    await page.getByLabel('Filter by learner or lesson').fill('schema');
+    assert.deepEqual(await page.locator('.archive-row:not([hidden]) h2').allTextContents(), ['Schema migration review']);
+    await page.reload({ waitUntil: 'networkidle' });
+    assert.equal(await page.locator('.archive-row').count(), 3, 'saved lesson history remains available after a reload');
+  }),
+
+  '@claim:permanent-lesson-deletion': async () => {
+    let created;
+    try {
+      const create = await fetch(`${baseURL}/api/lessons`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title: 'Deletion claim fixture', checkpoints: [{ title: 'Run cleanup', command: 'npm test' }] }),
+      });
+      assert.equal(create.status, 201);
+      created = await create.json();
+      const learnerBefore = await (await fetch(`${baseURL}/api/lessons/code/${created.shareCode}`)).json();
+      const checkpointId = learnerBefore.checkpoints[0].id;
+      const submit = await fetch(`${baseURL}/api/lessons/code/${created.shareCode}/checkpoints/${checkpointId}/submissions`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'blocked', output: 'API_KEY=delete-fixture', note: 'A run to remove', consented: true }),
+      });
+      assert.equal(submit.status, 201);
+      const tutorBefore = await (await fetch(`${baseURL}/api/tutor/lessons/${created.id}`, { headers: { Authorization: `Bearer ${created.tutorToken}` } })).json();
+      const submissionId = tutorBefore.checkpoints[0].submissions[0].id;
+      const reply = await fetch(`${baseURL}/api/tutor/submissions/${submissionId}/reply`, {
+        method: 'PUT',
+        headers: { Authorization: `Bearer ${created.tutorToken}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reply: 'This reply must be removed too.' }),
+      });
+      assert.equal(reply.status, 200);
+      const remove = await fetch(`${baseURL}/api/tutor/lessons/${created.id}`, {
+        method: 'DELETE', headers: { Authorization: `Bearer ${created.tutorToken}` },
+      });
+      assert.equal(remove.status, 204);
+      assert.equal((await fetch(`${baseURL}/api/lessons/code/${created.shareCode}`)).status, 404);
+      assert.equal((await fetch(`${baseURL}/api/tutor/lessons/${created.id}`, { headers: { Authorization: `Bearer ${created.tutorToken}` } })).status, 404);
+      created = undefined;
+    } finally {
+      if (created) await fetch(`${baseURL}/api/tutor/lessons/${created.id}`, { method: 'DELETE', headers: { Authorization: `Bearer ${created.tutorToken}` } });
+    }
+  },
 };
 
 try {

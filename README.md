@@ -46,6 +46,7 @@ npm run test:package # package and inspect the VS Code extension consumer
 npm run test:e2e     # desktop/mobile browser, keyboard, accessibility, privacy
 npm run test:pwa     # update and offline-demo behavior
 npm run test:coherence # fresh-connection lifecycle
+cargo test azure_files_lock_does_not_kill_startup_during_wal_configuration_regression
 docker build -t code-lesson-checkpoints .
 docker run --rm -p 8080:8080 code-lesson-checkpoints
 ```
@@ -64,7 +65,7 @@ The generated hero illustration is original project artwork; prompt and provenan
 
 ## Deployment
 
-The multi-stage Dockerfile compiles both frontend and Rust service, runs as a non-root user on port 8080, and creates a writable `/data` directory. [`deployment/container-app.json`](deployment/container-app.json) mounts the product-owned `sf-code-lesson-checkpoints-data` share at `/data` and pins the service to one replica. Lesson records, tutor authorization hashes, deletion, and demo workspaces persist in `/data/checkpoints.db`. API reads are capped per client, and writes use a stricter per-client allowance. Rate-limit responses include `Retry-After`.
+The multi-stage Dockerfile compiles both frontend and Rust service, runs as a non-root user on port 8080, and creates a writable `/data` directory. [`deployment/container-app.json`](deployment/container-app.json) mounts the product-owned `sf-code-lesson-checkpoints-data` share at `/data` and pins the service to one replica. Lesson records, tutor authorization hashes, deletion, and demo workspaces persist in `/data/checkpoints.db`. SQLite uses rollback-journal (`DELETE`) mode rather than WAL, so startup can retry an Azure Files lock instead of dying during connection setup. API reads are capped per client, and writes use a stricter per-client allowance. Rate-limit responses include `Retry-After`.
 
 The only release command is `scripts/deploy-release.sh <full-commit-sha>`. It builds the immutable image, applies and reads back the one-replica `/data` mount, writes a canary, restarts the revision, verifies the canary after restart, and runs repeated fresh-connection lifecycle checks. `BASE_URL=https://code-lesson-checkpoints.sociobot.in EXPECTED_BUILD_SHA=<commit> COHERENCE_CYCLES=4 npm run test:coherence` repeats the public probe. DNS, durable-share provisioning, and billing registration remain factory-managed outside this repository.
 

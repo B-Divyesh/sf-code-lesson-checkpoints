@@ -18,14 +18,31 @@ min_replicas=$(jq -r '.scale.minReplicas' "$contract")
 max_replicas=$(jq -r '.scale.maxReplicas' "$contract")
 revision_mode=$(jq -r '.activeRevisionsMode' "$contract")
 
-app_json=$(az containerapp show --resource-group "$resource_group" --name "$app_name" --output json)
-app_id=$(jq -r '.id' <<<"$app_json")
+if [[ -z "$image" ]]; then
+  echo "Usage: scripts/apply-deployment-contract.sh <immutable-image-reference>" >&2
+  exit 1
+fi
+
+# Replace the full application environment without retrieving it first. This
+# removes the stale connection setting without ever reading, interpolating, or
+# logging its value. The service is designed to run with only PORT.
+az containerapp update \
+  --resource-group "$resource_group" \
+  --name "$app_name" \
+  --container-name app \
+  --replace-env-vars PORT=8080 \
+  --output none
+
+# Read only the product app's ARM identifier. In particular, do not retrieve
+# its template/environment because the stale setting must remain unread while
+# it is removed above.
+app_id=$(az containerapp show --resource-group "$resource_group" --name "$app_name" --query id --output tsv)
 api_version=2024-03-01
 
-# The product has one serving process and one durable state boundary. Keep
-# only PORT in the application environment; all lesson state is an SQLite file
-# on the product-owned Azure Files mount at /data.
-patch=$(jq \
+# The product has one serving process and one durable state boundary. This is
+# a complete, explicit template: one named container, PORT only, one Azure
+# Files mount, and one replica. No existing app configuration is copied in.
+patch=$(jq -n \
   --arg volumeName "$volume_name" \
   --arg storageName "$storage_name" \
   --arg dataDir "$data_dir" \
@@ -33,16 +50,17 @@ patch=$(jq \
   --arg image "$image" \
   --argjson minReplicas "$min_replicas" \
   --argjson maxReplicas "$max_replicas" \
-  '.properties.template.containers |= map(if .name == "app" then
-       .volumeMounts = [{volumeName:$volumeName,mountPath:$dataDir}] |
-       .env = [{name:"PORT",value:"8080"}] |
-       if $image == "" then . else .image = $image end
-     else . end) |
-   {properties:{configuration:{activeRevisionsMode:$revisionMode},template:{
-     containers:.properties.template.containers,
+  '{properties:{configuration:{activeRevisionsMode:$revisionMode},template:{
+     containers:[{
+       name:"app",
+       image:$image,
+       resources:{cpu:0.5,memory:"1Gi"},
+       env:[{name:"PORT",value:"8080"}],
+       volumeMounts:[{volumeName:$volumeName,mountPath:$dataDir}]
+     }],
      scale:{minReplicas:$minReplicas,maxReplicas:$maxReplicas},
      volumes:[{name:$volumeName,storageType:"AzureFile",storageName:$storageName}]
-   }}}' <<<"$app_json")
+   }}}')
 
 az rest \
   --method patch \
@@ -58,7 +76,7 @@ for attempt in $(seq 1 48); do
     --name "$app_name" \
     --revision "$revision" \
     --query 'length(@)' --output tsv 2>/dev/null || true)
-  if jq -e --arg volume "$volume_name" --arg storage "$storage_name" --arg dataDir "$data_dir" --arg revisionMode "$revision_mode" \
+  if jq -e --arg volume "$volume_name" --arg storage "$storage_name" --arg dataDir "$data_dir" --arg revisionMode "$revision_mode" --arg image "$image" \
     --argjson minReplicas "$min_replicas" --argjson maxReplicas "$max_replicas" \
     '.properties.provisioningState == "Succeeded" and
      .properties.latestRevisionName == .properties.latestReadyRevisionName and
@@ -67,11 +85,33 @@ for attempt in $(seq 1 48); do
      .properties.template.scale.minReplicas == $minReplicas and .properties.template.scale.maxReplicas == $maxReplicas and
      ((.properties.template.volumes // []) | any(.name == $volume and .storageType == "AzureFile" and .storageName == $storage)) and
      any(.properties.template.containers[]; .name == "app" and
+       .image == $image and
        (.env == [{name:"PORT",value:"8080"}]) and
        (.volumeMounts == [{volumeName:$volume,mountPath:$dataDir}]))' \
     <<<"$state" >/dev/null && [[ "$replica_count" == "$min_replicas" ]]; then
-    echo "Deployment contract applied: one durable /data mount and one serving replica."
-    exit 0
+    active_revisions=$(az containerapp revision list \
+      --resource-group "$resource_group" \
+      --name "$app_name" \
+      --query '[?properties.active].name' \
+      --output tsv)
+    while IFS= read -r active_revision; do
+      if [[ -n "$active_revision" && "$active_revision" != "$revision" ]]; then
+        az containerapp revision deactivate \
+          --resource-group "$resource_group" \
+          --name "$app_name" \
+          --revision "$active_revision" \
+          --output none
+      fi
+    done <<<"$active_revisions"
+    remaining_active=$(az containerapp revision list \
+      --resource-group "$resource_group" \
+      --name "$app_name" \
+      --query '[?properties.active].name' \
+      --output tsv | sed '/^$/d' | wc -l | tr -d ' ')
+    if [[ "$remaining_active" == "1" ]]; then
+      echo "Deployment contract applied: PORT only, one durable /data mount, and one serving replica."
+      exit 0
+    fi
   fi
   sleep 5
 done

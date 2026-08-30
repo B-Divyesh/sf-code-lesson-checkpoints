@@ -18,7 +18,7 @@ use regex::Regex;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use sqlx::{
-    sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions},
+    sqlite::{SqliteConnectOptions, SqlitePoolOptions},
     Row, SqlitePool,
 };
 use tower_governor::{
@@ -46,7 +46,7 @@ mod sqlx {
     pub use sqlx_sqlite::SqlitePool;
 
     pub mod sqlite {
-        pub use sqlx_sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions};
+        pub use sqlx_sqlite::{SqliteConnectOptions, SqlitePoolOptions};
     }
 }
 
@@ -258,10 +258,13 @@ fn default_dist_dir() -> PathBuf {
 
 async fn connect_state(state_file: &FilePath) -> anyhow::Result<SqlitePool> {
     let connection = format!("sqlite://{}?mode=rwc", state_file.display());
+    // Do not set a journal mode while opening the connection. In particular,
+    // WAL setup has to take an exclusive SQLite lock and Azure Files can
+    // retain that lock during a revision hand-off. Opening first lets the
+    // retryable migration phase perform the rollback-journal transition.
     let options = SqliteConnectOptions::from_str(&connection)?
         .create_if_missing(true)
         .foreign_keys(true)
-        .journal_mode(SqliteJournalMode::Wal)
         .busy_timeout(Duration::from_secs(5));
     Ok(SqlitePoolOptions::new()
         .max_connections(1)
@@ -273,6 +276,14 @@ async fn run_sqlite_migrations(db: &SqlitePool) -> anyhow::Result<()> {
     const ATTEMPTS: u8 = 6;
     for attempt in 1..=ATTEMPTS {
         match async {
+            // Azure Files is a durable single-writer mount, not a suitable
+            // home for SQLite's WAL shared-memory sidecar. DELETE is SQLite's
+            // rollback-journal mode and keeps all coordination in the main
+            // database/journal files. This command deliberately lives in the
+            // retryable startup phase rather than connection setup.
+            sqlx::query("PRAGMA journal_mode = DELETE")
+                .execute(db)
+                .await?;
             sqlx::query(INITIAL_SCHEMA).execute(db).await?;
             sqlx::query(DEMO_SCHEMA).execute(db).await
         }
@@ -1229,6 +1240,79 @@ mod tests {
         let _ = std::fs::remove_file(&state_file);
         let _ = std::fs::remove_file(state_file.with_extension("db-wal"));
         let _ = std::fs::remove_file(state_file.with_extension("db-shm"));
+        let _ = std::fs::remove_dir(mount_dir);
+    }
+
+    #[tokio::test]
+    async fn azure_files_lock_does_not_kill_startup_during_wal_configuration_regression() {
+        // Reproduce the release failure exactly: a competing SQLite process
+        // holds the database exclusively, so connection-time WAL setup
+        // returns `(code: 5) database is locked`. The repaired startup opens
+        // without changing journal mode, waits for the lock in the retryable
+        // migration phase, then explicitly uses the Azure-Files-safe DELETE
+        // rollback journal.
+        let mount_dir = std::env::temp_dir().join(format!("clc-lock-mount-{}", Uuid::new_v4()));
+        std::fs::create_dir_all(&mount_dir).unwrap();
+        let state_file = state_file_for(&mount_dir, true);
+        let connection = format!("sqlite://{}?mode=rwc", state_file.display());
+        let initial = SqlitePoolOptions::new()
+            .max_connections(1)
+            .connect_with(
+                SqliteConnectOptions::from_str(&connection)
+                    .unwrap()
+                    .create_if_missing(true),
+            )
+            .await
+            .unwrap();
+        let mut holder = initial.acquire().await.unwrap();
+        sqlx::query("BEGIN EXCLUSIVE")
+            .execute(&mut *holder)
+            .await
+            .unwrap();
+
+        let legacy_error = SqlitePoolOptions::new()
+            .max_connections(1)
+            .connect_with(
+                SqliteConnectOptions::from_str(&connection)
+                    .unwrap()
+                    .create_if_missing(true)
+                    .journal_mode(sqlx_sqlite::SqliteJournalMode::Wal)
+                    .busy_timeout(Duration::from_millis(25)),
+            )
+            .await
+            .unwrap_err();
+        assert!(
+            legacy_error
+                .to_string()
+                .to_ascii_lowercase()
+                .contains("database is locked"),
+            "the former connection-time WAL setup must reproduce the Azure Files lock: {legacy_error}"
+        );
+
+        let repaired = connect_state(&state_file)
+            .await
+            .expect("opening without a journal transition is not blocked");
+        let migration = tokio::spawn({
+            let repaired = repaired.clone();
+            async move { run_sqlite_migrations(&repaired).await }
+        });
+        tokio::time::sleep(Duration::from_millis(50)).await;
+        sqlx::query("COMMIT").execute(&mut *holder).await.unwrap();
+        drop(holder);
+        migration
+            .await
+            .unwrap()
+            .expect("startup retries the journal transition after the lock clears");
+        let mode: String = sqlx::query_scalar("PRAGMA journal_mode")
+            .fetch_one(&repaired)
+            .await
+            .unwrap();
+        assert_eq!(mode.to_ascii_lowercase(), "delete");
+
+        repaired.close().await;
+        initial.close().await;
+        let _ = std::fs::remove_file(&state_file);
+        let _ = std::fs::remove_file(state_file.with_extension("db-journal"));
         let _ = std::fs::remove_dir(mount_dir);
     }
 
