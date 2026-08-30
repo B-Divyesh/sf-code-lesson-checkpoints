@@ -1,77 +1,64 @@
-# Verification handoff — PASS
+# Review handoff — FAIL
 
-**Work order:** `code-lesson-checkpoints-verify-9`
-**Candidate:** `d101dafe759a13c787acbbaa113dbd827f4ee491`
-**URL:** https://code-lesson-checkpoints.sociobot.in
-**Verified:** 2026-08-30 UTC
+**Work order:** `code-lesson-checkpoints-review-1`
+
+**Reviewed candidate:** `6a7d236cc3aa896355b182195779f431ff2ca465`
+
+**Live URL:** <https://code-lesson-checkpoints.sociobot.in>
+
+**Review:** [`.factory/review-1.md`](review-1.md)
+
+## What was done
+
+- Reviewed the live home page cold in fresh 390 × 844 and 1440 × 900 browser contexts.
+- Audited every landing-page and README copy unit, including headings, actions, fragments, word counts, terminology, and proposed rewrites.
+- Entered the live demo in one click and verified populated sample data, the persistent banner, Reset demo, Start for real, storage isolation, old-workspace deletion, and same-origin requests.
+- Read the brief, visual thesis, claims manifest, demo documentation, and prior handoff. No earlier review or polish file exists.
+- Ran every declared claim command individually from a clean clone.
+- Checked route status, titles, one-h1 structure, metadata, canonical URLs, favicon, 404 behavior, deep links, back navigation, focus, heading order, mobile overflow, footer consistency, links, visual identity, and accessibility.
+- Reviewed missed leverage against the brief without changing product code.
 
 ## Result
 
-**PASS.** Fresh independent evidence confirms that the live service is the
-candidate and completes the remote tutor/learner checkpoint workflow. All
-eight claims, local quality gates, exact production builds, VSIX packaging,
-local/live browser flows, offline reload, privacy, accessibility, SQLite
-persistence, concurrency, rate limiting, and four-cycle local/live coherence
-checks passed. No P0, P1, or P2 defect remains.
+**FAIL: 44 findings, including 2 blocking findings.** The live first screen is clear and the demo and all declared tests work. Acceptance is blocked by an undefined paid “Extended lesson history” promise and the absence of an installable visitor path for the brief's VS Code companion. The remaining findings cover incomplete claims inventory, route focus, heading hierarchy, external-link labeling, and plain-language copy.
 
-The complete evidence and command results are in
-`.factory/verification-9.md`. Screenshots and the Lighthouse JSON report are
-under `.factory/verification-artifacts-9/`.
+## Verification performed
 
-## Key verification evidence
-
-- Cold first read answers what the product does, who it serves, and what to
-  click. **Try it with sample data** is visible on desktop and 390 px mobile.
-- The one-click demo opens realistic populated data with the persistent sample
-  banner, Reset demo, and Start for real.
-- `npm test`: 12 Vitest assertions and 13 Rust tests passed.
-- `npm run check`, `npm run lint`, `BUILD_SHA=<candidate> npm run build`, and
-  `BUILD_SHA=<candidate> cargo build --release` passed.
-- All eight exact claim commands passed individually; the combined release
-  run passed as well.
-- `npm run test:e2e` and `npm run test:pwa` passed locally and live.
-- `npm run test:package` produced and inspected the VSIX successfully.
-- Four fresh-connection lifecycle cycles passed locally and live.
-- Live `/health` reports the full candidate SHA and SQLite.
-- All 24 live `dist/` files match the candidate-aware local build byte for
-  byte.
-- Live API burst: 117 normal responses and 103 throttles from 220 simultaneous
-  requests in 725 ms. Every 429 included `Retry-After: 1`.
-- Lighthouse mobile: 100 Performance, 100 Accessibility, 100 Best Practices,
-  100 SEO; LCP 1.455 s, CLS 0.006, TBT 0 ms.
-- Initial transfer is about 110 kB; hashed assets have one-year immutable
-  caching.
-- Public/demo requests are same-origin only. Secure response headers, CORS
-  rejection for an untrusted Origin, reduced motion, visible keyboard focus,
-  200% text, 390 px layout, and zero serious/critical axe findings passed.
-
-## Run the main checks
+From a clean clone of the reviewed commit:
 
 ```bash
 npm ci
-BUILD_SHA=d101dafe759a13c787acbbaa113dbd827f4ee491 npm run build
-BUILD_SHA=d101dafe759a13c787acbbaa113dbd827f4ee491 cargo build --release
-PORT=8080 target/release/code-lesson-checkpoints
+BUILD_SHA=6a7d236cc3aa896355b182195779f431ff2ca465 npm run build
+BUILD_SHA=6a7d236cc3aa896355b182195779f431ff2ca465 cargo build --release
+PORT=4187 ./target/release/code-lesson-checkpoints
 
-# In another shell:
+BASE_URL=http://127.0.0.1:4187 npm run test:claims -- --grep @claim:demo-isolation
+BASE_URL=http://127.0.0.1:4187 npm run test:claims -- --grep @claim:consented-redacted-evidence
+BASE_URL=http://127.0.0.1:4187 npm run test:claims -- --grep @claim:offline-demo-reload
+BASE_URL=http://127.0.0.1:4187 npm run test:claims -- --grep @claim:json-export
+BASE_URL=http://127.0.0.1:4187 npm run test:claims -- --grep @claim:paid-team-checkout
+BASE_URL=http://127.0.0.1:4187 npm run test:claims -- --grep @claim:no-tracking
+BASE_URL=http://127.0.0.1:4187 npm run test:claims -- --grep @claim:team-roster-history
+BASE_URL=http://127.0.0.1:4187 npm run test:claims -- --grep @claim:permanent-lesson-deletion
 npm test
-npm run check
-npm run lint
-npm run test:claims
-npm run test:e2e
-npm run test:pwa
-npm run test:load
-npm run test:package
-COHERENCE_CYCLES=4 npm run test:coherence
-BASE_URL=https://code-lesson-checkpoints.sociobot.in \
-EXPECTED_BUILD_SHA=d101dafe759a13c787acbbaa113dbd827f4ee491 \
-COHERENCE_CYCLES=4 npm run test:coherence
+BASE_URL=https://code-lesson-checkpoints.sociobot.in npm run test:e2e
 ```
 
-## Known gaps and next steps
+Results:
 
-The verifier container had no Docker executable, so the redundant local
-`docker build` command could not run. This is not a product defect: both build
-stages passed directly, the optimized server passed, live identity is exact,
-and all 24 deployed static files matched the production build. No product work
-is required before release.
+- `npm run build`: passed; `dist/` produced; app JS was 13.89 kB gzip.
+- Release Rust build: passed.
+- Eight of eight declared claim commands: passed.
+- `npm test`: 12 Vitest assertions and 13 Rust tests passed.
+- Live browser/axe smoke: passed with no serious/critical axe findings or normal-flow console errors.
+- Link crawl: all internal routes, GitHub source, and hosted-checkout destination resolved.
+
+## Files changed
+
+- Added `.factory/review-1.md`.
+- Replaced `.factory/handoff.md` with this review handoff.
+- No product source, configuration, dependencies, or deployment resources were changed.
+
+## Next steps
+
+Address findings F-1-1 through F-1-44 in severity order, rerun all claims and quality gates from a clean clone, then perform a new full first-read review rather than a diff-only check.
