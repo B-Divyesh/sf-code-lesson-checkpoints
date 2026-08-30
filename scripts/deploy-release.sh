@@ -38,9 +38,14 @@ az acr build \
   --build-arg "SOURCE_COMMIT=$source_sha" \
   "$repo_dir"
 
-# Repair drift before creating the persistence canary. This is necessary when
-# an earlier generic rollout removed the volume from the active revision.
-"$repo_dir/scripts/apply-deployment-contract.sh"
+"$repo_dir/scripts/migrate-postgres.sh"
+
+runtime_database_url=$(az keyvault secret show \
+  --vault-name "$(jq -r '.postgres.keyVault' "$contract")" \
+  --name "$(jq -r '.postgres.keyVaultSecret' "$contract")" \
+  --query value --output tsv)
+POSTGRES_RUNTIME_URL="$runtime_database_url" npm --prefix "$repo_dir" run test:postgres-coherence
+unset runtime_database_url
 
 canary=''
 cleanup_canary() {
@@ -54,21 +59,10 @@ cleanup_canary() {
 }
 trap cleanup_canary EXIT
 
-canary=$(curl --fail-with-body --silent --show-error \
-  --request POST \
-  --header 'Content-Type: application/json' \
-  --data '{"title":"Revision persistence canary","checkpoints":[{"title":"Keep the record","command":"npm test","successHint":"The next revision can read this lesson"}]}' \
-  "$base_url/api/lessons")
-
-az containerapp update \
-  --resource-group "$resource_group" \
-  --name "$app_name" \
-  --image "$image" \
-  --output none
-
-# Image updates must never be accepted without the product-specific SQLite
-# topology. Readback in this script is the release gate, not documentation.
-"$repo_dir/scripts/apply-deployment-contract.sh"
+# Apply the image, shared database secret, and three-replica topology in one
+# revision. Updating the image first would briefly start it against the old
+# per-replica SQLite boundary, recreating the exact data-loss failure.
+"$repo_dir/scripts/apply-deployment-contract.sh" "$image"
 
 for attempt in $(seq 1 60); do
   live_build=$(curl --silent --show-error "$base_url/health" | jq -r '.build // empty' || true)
@@ -82,16 +76,53 @@ for attempt in $(seq 1 60); do
   sleep 5
 done
 
+# Persist a record before restarting every serving process. Reading and
+# deleting it afterwards proves that a revision restart does not create a
+# private replica-local state boundary.
+canary=$(curl --fail-with-body --silent --show-error \
+  --request POST \
+  --header 'Content-Type: application/json' \
+  --data '{"title":"Revision persistence canary","checkpoints":[{"title":"Keep the record","command":"npm test","successHint":"Every restarted replica can read this lesson"}]}' \
+  "$base_url/api/lessons")
+revision=$(az containerapp show \
+  --resource-group "$resource_group" \
+  --name "$app_name" \
+  --query 'properties.latestReadyRevisionName' --output tsv)
+az containerapp revision restart \
+  --resource-group "$resource_group" \
+  --name "$app_name" \
+  --revision "$revision" \
+  --output none
 canary_code=$(jq -r '.shareCode' <<<"$canary")
-for attempt in $(seq 1 20); do
+canary_id=$(jq -r '.id' <<<"$canary")
+canary_token=$(jq -r '.tutorToken' <<<"$canary")
+for attempt in $(seq 1 60); do
   status=$(curl --silent --show-error --http1.1 --no-keepalive \
     --output /dev/null --write-out '%{http_code}' \
-    "$base_url/api/lessons/code/$canary_code?fresh=$attempt")
+    "$base_url/api/lessons/code/$canary_code?restart=$attempt")
+  if [[ "$status" == 200 ]]; then
+    break
+  fi
+  if [[ "$attempt" == 60 ]]; then
+    echo "Revision restart canary did not become readable." >&2
+    exit 1
+  fi
+  sleep 2
+done
+for attempt in $(seq 1 24); do
+  status=$(curl --silent --show-error --http1.1 --no-keepalive \
+    --output /dev/null --write-out '%{http_code}' \
+    "$base_url/api/tutor/lessons/$canary_id?restart=$attempt" \
+    --header "Authorization: Bearer $canary_token")
   if [[ "$status" != 200 ]]; then
-    echo "Revision persistence canary read $attempt returned $status." >&2
+    echo "Revision restart canary read $attempt returned $status." >&2
     exit 1
   fi
 done
 
-BASE_URL="$base_url" EXPECTED_BUILD_SHA="$source_sha" npm --prefix "$repo_dir" run test:coherence
-echo "Release $source_sha is live with durable single-replica SQLite."
+BASE_URL="$base_url" \
+  EXPECTED_BUILD_SHA="$source_sha" \
+  COHERENCE_CYCLES="$(jq -r '.coherenceProbe.cycles' "$contract")" \
+  MINIMUM_DISTINCT_REPLICAS="$(jq -r '.coherenceProbe.minimumDistinctReplicas' "$contract")" \
+  npm --prefix "$repo_dir" run test:coherence
+echo "Release $source_sha is live with shared PostgreSQL lesson state across replicas."

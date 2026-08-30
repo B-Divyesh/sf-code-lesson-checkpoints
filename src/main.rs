@@ -1,14 +1,12 @@
 use std::{
-    collections::HashMap,
     env,
     net::{IpAddr, SocketAddr},
     path::PathBuf,
-    sync::Arc,
     time::{Duration, SystemTime},
 };
 
 use axum::{
-    extract::{ConnectInfo, DefaultBodyLimit, Path, State},
+    extract::{ConnectInfo, DefaultBodyLimit, Path, Request, State},
     http::{header, HeaderMap, HeaderValue, Method, StatusCode},
     response::{IntoResponse, Response},
     routing::{get, get_service, post, put},
@@ -19,8 +17,9 @@ use regex::Regex;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use sqlx::{
-    sqlite::{SqliteConnectOptions, SqlitePoolOptions},
-    Row, SqlitePool,
+    any::{install_default_drivers, AnyPoolOptions},
+    postgres::PgPoolOptions,
+    AnyPool, Row,
 };
 use tower_governor::{
     governor::GovernorConfigBuilder, key_extractor::KeyExtractor, GovernorError, GovernorLayer,
@@ -36,18 +35,20 @@ use tracing::{info, warn};
 use uuid::Uuid;
 
 const DEMO_TTL: Duration = Duration::from_secs(24 * 60 * 60);
+const POSTGRES_SCHEMA: &str = "code_lesson_checkpoints";
+const POSTGRES_RUNTIME_ROLE: &str = "sociobot_runtime";
 
 #[derive(Clone)]
 struct AppState {
-    db: SqlitePool,
+    db: AnyPool,
     build_sha: String,
-    demos: Arc<tokio::sync::Mutex<HashMap<String, DemoWorkspace>>>,
+    replica_id: String,
 }
 
-#[derive(Clone)]
-struct DemoWorkspace {
-    expires_at: SystemTime,
-    lesson: Value,
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum DatabaseKind {
+    Sqlite,
+    Postgres,
 }
 
 /// The factory ingress writes the originating client as the first
@@ -196,6 +197,8 @@ async fn main() -> anyhow::Result<()> {
         .to_owned();
     let supplied_dist_dir = env::var("DIST_DIR").ok();
     let dist = PathBuf::from(supplied_dist_dir.as_deref().unwrap_or("dist"));
+    let database_kind = database_kind_from_url(database_url)?;
+    let migration_only = env::var("MIGRATE_ONLY").ok().as_deref() == Some("1");
     // Do not log values: DATABASE_URL can itself contain credentials. This
     // single startup record makes the container's configuration provenance
     // observable without exposing a secret.
@@ -215,19 +218,19 @@ async fn main() -> anyhow::Result<()> {
         } else {
             "default"
         },
+        database_kind = ?database_kind,
         "runtime configuration resolved"
     );
-    let sqlite_options = database_url
-        .parse::<SqliteConnectOptions>()?
-        .busy_timeout(Duration::from_secs(30));
-    // The deployment contract deliberately runs one SQLite writer. Keeping a
-    // single pool connection also avoids competing file locks during an Azure
-    // Files-backed revision handoff.
-    let db = SqlitePoolOptions::new()
-        .max_connections(1)
-        .connect_with(sqlite_options)
-        .await?;
-    run_migrations(&db).await?;
+    if database_kind == DatabaseKind::Postgres && migration_only {
+        migrate_postgres(database_url).await?;
+        info!("PostgreSQL schema migration completed");
+        return Ok(());
+    }
+    let db = connect_database(database_url, database_kind).await?;
+    match database_kind {
+        DatabaseKind::Sqlite => run_sqlite_migrations(&db).await?,
+        DatabaseKind::Postgres => verify_postgres_schema(&db).await?,
+    }
     let state = app_state(db, build_sha);
     let app = app(state, dist);
     let port = env::var("PORT")
@@ -246,18 +249,51 @@ async fn main() -> anyhow::Result<()> {
     Ok(())
 }
 
-fn app_state(db: SqlitePool, build_sha: String) -> AppState {
+fn app_state(db: AnyPool, build_sha: String) -> AppState {
     AppState {
         db,
         build_sha,
-        demos: Arc::new(tokio::sync::Mutex::new(HashMap::new())),
+        replica_id: random_string(12),
     }
 }
 
-async fn run_migrations(db: &SqlitePool) -> anyhow::Result<()> {
+fn database_kind_from_url(database_url: &str) -> anyhow::Result<DatabaseKind> {
+    if database_url.starts_with("postgres://") || database_url.starts_with("postgresql://") {
+        return Ok(DatabaseKind::Postgres);
+    }
+    if database_url.starts_with("sqlite:") {
+        return Ok(DatabaseKind::Sqlite);
+    }
+    anyhow::bail!("DATABASE_URL must use sqlite://, postgres://, or postgresql://")
+}
+
+async fn connect_database(database_url: &str, kind: DatabaseKind) -> anyhow::Result<AnyPool> {
+    install_default_drivers();
+    let max_connections = if kind == DatabaseKind::Postgres {
+        10
+    } else {
+        1
+    };
+    let options = AnyPoolOptions::new()
+        .max_connections(max_connections)
+        .after_connect(move |connection, _| {
+            Box::pin(async move {
+                if kind == DatabaseKind::Postgres {
+                    sqlx::query(&format!("SET search_path TO {POSTGRES_SCHEMA}"))
+                        .execute(&mut *connection)
+                        .await?;
+                }
+                Ok(())
+            })
+        });
+    Ok(options.connect(database_url).await?)
+}
+
+async fn run_sqlite_migrations(db: &AnyPool) -> anyhow::Result<()> {
+    let migrator = sqlx::migrate!();
     const ATTEMPTS: u8 = 6;
     for attempt in 1..=ATTEMPTS {
-        match sqlx::migrate!().run(db).await {
+        match migrator.run(db).await {
             Ok(()) => return Ok(()),
             Err(error)
                 if attempt < ATTEMPTS
@@ -277,6 +313,42 @@ async fn run_migrations(db: &SqlitePool) -> anyhow::Result<()> {
         }
     }
     unreachable!("migration retry loop always returns")
+}
+
+async fn migrate_postgres(database_url: &str) -> anyhow::Result<()> {
+    // Only the short-lived deployment migration command uses the privileged
+    // migration URL. Serving replicas receive the runtime role, which cannot
+    // create schemas or alter tables.
+    let setup = PgPoolOptions::new()
+        .max_connections(1)
+        .connect(database_url)
+        .await?;
+    sqlx::query(&format!("CREATE SCHEMA IF NOT EXISTS {POSTGRES_SCHEMA}"))
+        .execute(&setup)
+        .await?;
+    sqlx::query(&format!("SET search_path TO {POSTGRES_SCHEMA}"))
+        .execute(&setup)
+        .await?;
+    sqlx::migrate!("./migrations/postgres").run(&setup).await?;
+    sqlx::query(&format!(
+        "GRANT USAGE ON SCHEMA {POSTGRES_SCHEMA} TO {POSTGRES_RUNTIME_ROLE}"
+    ))
+    .execute(&setup)
+    .await?;
+    sqlx::query(&format!(
+        "GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA {POSTGRES_SCHEMA} TO {POSTGRES_RUNTIME_ROLE}"
+    ))
+        .execute(&setup)
+        .await?;
+    setup.close().await;
+    Ok(())
+}
+
+async fn verify_postgres_schema(db: &AnyPool) -> anyhow::Result<()> {
+    sqlx::query_scalar::<_, i64>("SELECT 1 FROM lessons LIMIT 1")
+        .fetch_optional(db)
+        .await?;
+    Ok(())
 }
 
 fn app(state: AppState, dist: PathBuf) -> Router {
@@ -363,7 +435,27 @@ fn app(state: AppState, dist: PathBuf) -> Router {
         .layer(SetResponseHeaderLayer::if_not_present(header::REFERRER_POLICY, HeaderValue::from_static("strict-origin-when-cross-origin")))
         .layer(SetResponseHeaderLayer::if_not_present(header::CONTENT_SECURITY_POLICY, HeaderValue::from_static("default-src 'self'; img-src 'self' data:; style-src 'self'; script-src 'self'; connect-src 'self' https://api.sociobot.in https://pilot-api.sociobot.in; font-src 'self'; base-uri 'none'; frame-ancestors 'none'; form-action 'self' https://api.sociobot.in")))
         .layer(TraceLayer::new_for_http())
+        .layer(axum::middleware::from_fn_with_state(
+            state.clone(),
+            mark_replica_response,
+        ))
         .with_state(state)
+}
+
+async fn mark_replica_response(
+    State(state): State<AppState>,
+    request: Request,
+    next: axum::middleware::Next,
+) -> Response {
+    let mut response = next.run(request).await;
+    // A random process identifier lets the release probe prove that separate
+    // replica processes can immediately observe one shared record. It carries
+    // no host name, customer data, or deployment credential.
+    response.headers_mut().insert(
+        header::HeaderName::from_static("x-checkpoint-replica"),
+        HeaderValue::from_str(&state.replica_id).expect("generated replica id is a header value"),
+    );
+    response
 }
 
 fn rate_limit_error(error: GovernorError) -> Response {
@@ -395,17 +487,34 @@ async fn health(State(state): State<AppState>) -> Json<Value> {
 
 async fn create_demo_workspace(State(state): State<AppState>) -> (StatusCode, Json<Value>) {
     let id = Uuid::new_v4().to_string();
-    let expires_at = SystemTime::now() + DEMO_TTL;
-    let workspace = DemoWorkspace {
-        expires_at,
-        lesson: sample_demo_lesson(),
-    };
-    let mut demos = state.demos.lock().await;
-    demos.retain(|_, demo| demo.expires_at > SystemTime::now());
-    demos.insert(id.clone(), workspace.clone());
+    let expires_at = unix_seconds() + DEMO_TTL.as_secs() as i64;
+    let lesson = sample_demo_lesson();
+    let lesson_json = serde_json::to_string(&lesson).expect("sample demo serializes");
+    // Demo rows are deliberately separate from lessons. They expire after 24
+    // hours and are shared across replicas so a load-balanced demo stays
+    // usable without ever touching a tutor's real lesson records.
+    let _ = sqlx::query("DELETE FROM demo_workspaces WHERE expires_at <= $1")
+        .bind(unix_seconds())
+        .execute(&state.db)
+        .await;
+    // A failed demo provision is represented by the same useful HTTP error as
+    // the rest of the API rather than silently creating per-replica state.
+    if sqlx::query("INSERT INTO demo_workspaces (id, expires_at, lesson_json) VALUES ($1, $2, $3)")
+        .bind(&id)
+        .bind(expires_at)
+        .bind(lesson_json)
+        .execute(&state.db)
+        .await
+        .is_err()
+    {
+        return (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(json!({ "error": "The sample workspace could not be prepared. Try again." })),
+        );
+    }
     (
         StatusCode::CREATED,
-        Json(demo_workspace_response(&id, &workspace)),
+        Json(demo_workspace_response(&id, expires_at, lesson)),
     )
 }
 
@@ -413,22 +522,41 @@ async fn get_demo_workspace(
     State(state): State<AppState>,
     Path(id): Path<String>,
 ) -> ApiResult<Json<Value>> {
-    let mut demos = state.demos.lock().await;
-    demos.retain(|_, demo| demo.expires_at > SystemTime::now());
-    let workspace = demos.get(&id).ok_or_else(|| {
+    let row = sqlx::query(
+        "SELECT expires_at, lesson_json FROM demo_workspaces WHERE id = $1 AND expires_at > $2",
+    )
+    .bind(&id)
+    .bind(unix_seconds())
+    .fetch_optional(&state.db)
+    .await?
+    .ok_or_else(|| {
         ApiError(
             StatusCode::NOT_FOUND,
             "That sample workspace expired. Reset the demo to load a fresh copy.".into(),
         )
     })?;
-    Ok(Json(demo_workspace_response(&id, workspace)))
+    let lesson =
+        serde_json::from_str::<Value>(&row.get::<String, _>("lesson_json")).map_err(|_| {
+            ApiError(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "The sample workspace could not be loaded. Reset the demo to try again.".into(),
+            )
+        })?;
+    Ok(Json(demo_workspace_response(
+        &id,
+        row.get("expires_at"),
+        lesson,
+    )))
 }
 
 async fn delete_demo_workspace(
     State(state): State<AppState>,
     Path(id): Path<String>,
 ) -> StatusCode {
-    state.demos.lock().await.remove(&id);
+    let _ = sqlx::query("DELETE FROM demo_workspaces WHERE id = $1")
+        .bind(id)
+        .execute(&state.db)
+        .await;
     StatusCode::NO_CONTENT
 }
 
@@ -442,9 +570,14 @@ async fn redact_demo_output(
     Path(id): Path<String>,
     Json(body): Json<DemoRedaction>,
 ) -> ApiResult<Json<Value>> {
-    let mut demos = state.demos.lock().await;
-    demos.retain(|_, demo| demo.expires_at > SystemTime::now());
-    if !demos.contains_key(&id) {
+    let exists = sqlx::query_scalar::<_, i64>(
+        "SELECT COUNT(*) FROM demo_workspaces WHERE id = $1 AND expires_at > $2",
+    )
+    .bind(id)
+    .bind(unix_seconds())
+    .fetch_one(&state.db)
+    .await?;
+    if exists == 0 {
         return Err(ApiError(
             StatusCode::NOT_FOUND,
             "That sample workspace expired. Reset the demo to load a fresh copy.".into(),
@@ -458,17 +591,19 @@ async fn redact_demo_output(
     })))
 }
 
-fn demo_workspace_response(id: &str, workspace: &DemoWorkspace) -> Value {
-    let expires_at = workspace
-        .expires_at
-        .duration_since(SystemTime::UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_secs();
+fn demo_workspace_response(id: &str, expires_at: i64, lesson: Value) -> Value {
     json!({
         "workspaceId": id,
         "expiresAt": expires_at,
-        "lesson": workspace.lesson
+        "lesson": lesson
     })
+}
+
+fn unix_seconds() -> i64 {
+    SystemTime::now()
+        .duration_since(SystemTime::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs() as i64
 }
 
 fn sample_demo_lesson() -> Value {
@@ -539,14 +674,15 @@ async fn create_lesson(
     let token = random_string(40);
     let token_hash = hash_token(&token);
     let share_code = create_unique_code(&state.db).await?;
+    let created_at = unix_seconds().to_string();
     let mut tx = state.db.begin().await?;
-    sqlx::query("INSERT INTO lessons (id, title, learner_name, share_code, tutor_token_hash) VALUES (?, ?, ?, ?, ?)")
-        .bind(&id).bind(&title).bind(&learner_name).bind(&share_code).bind(token_hash).execute(&mut *tx).await?;
+    sqlx::query("INSERT INTO lessons (id, title, learner_name, share_code, tutor_token_hash, created_at, updated_at) VALUES ($1, $2, $3, $4, $5, $6, $7)")
+        .bind(&id).bind(&title).bind(&learner_name).bind(&share_code).bind(token_hash).bind(&created_at).bind(&created_at).execute(&mut *tx).await?;
     for (position, checkpoint) in body.checkpoints.iter().enumerate() {
         let checkpoint_title = clean_required(&checkpoint.title, 100, "Checkpoint title")?;
         let command = clean_required(&checkpoint.command, 500, "Command")?;
         let success_hint = clean_optional(checkpoint.success_hint.as_deref(), 300)?;
-        sqlx::query("INSERT INTO checkpoints (id, lesson_id, position, title, command, success_hint) VALUES (?, ?, ?, ?, ?, ?)")
+        sqlx::query("INSERT INTO checkpoints (id, lesson_id, position, title, command, success_hint) VALUES ($1, $2, $3, $4, $5, $6)")
             .bind(Uuid::new_v4().to_string()).bind(&id).bind(position as i64 + 1).bind(checkpoint_title).bind(command).bind(success_hint).execute(&mut *tx).await?;
     }
     tx.commit().await?;
@@ -565,7 +701,7 @@ async fn get_learner_lesson(
     Path(code): Path<String>,
 ) -> ApiResult<Json<LessonView>> {
     let code = normalize_code(&code);
-    let id = sqlx::query_scalar::<_, String>("SELECT id FROM lessons WHERE share_code = ?")
+    let id = sqlx::query_scalar::<_, String>("SELECT id FROM lessons WHERE share_code = $1")
         .bind(code)
         .fetch_optional(&state.db)
         .await?
@@ -604,7 +740,7 @@ async fn submit_evidence(
             "Status must be passed or blocked.".into(),
         ));
     }
-    let exists = sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM checkpoints c JOIN lessons l ON l.id = c.lesson_id WHERE c.id = ? AND l.share_code = ?")
+    let exists = sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM checkpoints c JOIN lessons l ON l.id = c.lesson_id WHERE c.id = $1 AND l.share_code = $2")
         .bind(&checkpoint_id).bind(normalize_code(&code)).fetch_one(&state.db).await?;
     if exists == 0 {
         return Err(ApiError(
@@ -615,10 +751,11 @@ async fn submit_evidence(
     let output = redact_and_cap(body.output.as_deref().unwrap_or(""), 8000);
     let note = clean_optional(body.note.as_deref(), 1000)?.unwrap_or_default();
     let id = Uuid::new_v4().to_string();
-    sqlx::query("INSERT INTO submissions (id, checkpoint_id, status, output, note, consented) VALUES (?, ?, ?, ?, ?, 1)")
-        .bind(&id).bind(&checkpoint_id).bind(&body.status).bind(output).bind(note).execute(&state.db).await?;
-    sqlx::query("UPDATE lessons SET updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = (SELECT lesson_id FROM checkpoints WHERE id = ?)")
-        .bind(&checkpoint_id).execute(&state.db).await?;
+    let created_at = unix_seconds().to_string();
+    sqlx::query("INSERT INTO submissions (id, checkpoint_id, status, output, note, consented, created_at) VALUES ($1, $2, $3, $4, $5, 1, $6)")
+        .bind(&id).bind(&checkpoint_id).bind(&body.status).bind(output).bind(note).bind(created_at).execute(&state.db).await?;
+    sqlx::query("UPDATE lessons SET updated_at = $1 WHERE id = (SELECT lesson_id FROM checkpoints WHERE id = $2)")
+        .bind(unix_seconds().to_string()).bind(&checkpoint_id).execute(&state.db).await?;
     Ok((
         StatusCode::CREATED,
         Json(json!({ "id": id, "saved": true })),
@@ -631,13 +768,17 @@ async fn reply_to_submission(
     headers: HeaderMap,
     Json(body): Json<ReplyBody>,
 ) -> ApiResult<Json<Value>> {
-    let lesson_id = sqlx::query_scalar::<_, String>("SELECT c.lesson_id FROM submissions s JOIN checkpoints c ON c.id = s.checkpoint_id WHERE s.id = ?")
+    let lesson_id = sqlx::query_scalar::<_, String>("SELECT c.lesson_id FROM submissions s JOIN checkpoints c ON c.id = s.checkpoint_id WHERE s.id = $1")
         .bind(&id).fetch_optional(&state.db).await?
         .ok_or_else(|| ApiError(StatusCode::NOT_FOUND, "That checkpoint update no longer exists.".into()))?;
     authorize_tutor(&state.db, &lesson_id, &headers).await?;
     let reply = clean_required(&body.reply, 2000, "Reply")?;
-    sqlx::query("UPDATE submissions SET teacher_reply = ?, replied_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ?")
-        .bind(reply).bind(&id).execute(&state.db).await?;
+    sqlx::query("UPDATE submissions SET teacher_reply = $1, replied_at = $2 WHERE id = $3")
+        .bind(reply)
+        .bind(unix_seconds().to_string())
+        .bind(&id)
+        .execute(&state.db)
+        .await?;
     Ok(Json(json!({ "saved": true })))
 }
 
@@ -647,27 +788,27 @@ async fn delete_lesson(
     headers: HeaderMap,
 ) -> ApiResult<StatusCode> {
     authorize_tutor(&state.db, &id, &headers).await?;
-    sqlx::query("DELETE FROM lessons WHERE id = ?")
+    sqlx::query("DELETE FROM lessons WHERE id = $1")
         .bind(id)
         .execute(&state.db)
         .await?;
     Ok(StatusCode::NO_CONTENT)
 }
 
-async fn load_lesson(db: &SqlitePool, id: &str) -> ApiResult<LessonView> {
+async fn load_lesson(db: &AnyPool, id: &str) -> ApiResult<LessonView> {
     let row = sqlx::query(
-        "SELECT id, title, learner_name, share_code, created_at FROM lessons WHERE id = ?",
+        "SELECT id, title, learner_name, share_code, created_at FROM lessons WHERE id = $1",
     )
     .bind(id)
     .fetch_optional(db)
     .await?
     .ok_or_else(|| ApiError(StatusCode::NOT_FOUND, "That lesson was not found.".into()))?;
-    let checkpoint_rows = sqlx::query("SELECT id, position, title, command, success_hint FROM checkpoints WHERE lesson_id = ? ORDER BY position")
+    let checkpoint_rows = sqlx::query("SELECT id, position, title, command, success_hint FROM checkpoints WHERE lesson_id = $1 ORDER BY position")
         .bind(id).fetch_all(db).await?;
     let mut checkpoints = Vec::with_capacity(checkpoint_rows.len());
     for checkpoint in checkpoint_rows {
         let checkpoint_id: String = checkpoint.get("id");
-        let submission_rows = sqlx::query("SELECT id, status, output, note, teacher_reply, created_at, replied_at FROM submissions WHERE checkpoint_id = ? ORDER BY created_at DESC")
+        let submission_rows = sqlx::query("SELECT id, status, output, note, teacher_reply, created_at, replied_at FROM submissions WHERE checkpoint_id = $1 ORDER BY created_at DESC")
             .bind(&checkpoint_id).fetch_all(db).await?;
         let submissions = submission_rows
             .into_iter()
@@ -700,7 +841,7 @@ async fn load_lesson(db: &SqlitePool, id: &str) -> ApiResult<LessonView> {
     })
 }
 
-async fn authorize_tutor(db: &SqlitePool, lesson_id: &str, headers: &HeaderMap) -> ApiResult<()> {
+async fn authorize_tutor(db: &AnyPool, lesson_id: &str, headers: &HeaderMap) -> ApiResult<()> {
     let token = headers
         .get(header::AUTHORIZATION)
         .and_then(|h| h.to_str().ok())
@@ -712,7 +853,7 @@ async fn authorize_tutor(db: &SqlitePool, lesson_id: &str, headers: &HeaderMap) 
             )
         })?;
     let stored =
-        sqlx::query_scalar::<_, String>("SELECT tutor_token_hash FROM lessons WHERE id = ?")
+        sqlx::query_scalar::<_, String>("SELECT tutor_token_hash FROM lessons WHERE id = $1")
             .bind(lesson_id)
             .fetch_optional(db)
             .await?
@@ -771,13 +912,13 @@ fn random_string(len: usize) -> String {
         .collect()
 }
 
-async fn create_unique_code(db: &SqlitePool) -> ApiResult<String> {
+async fn create_unique_code(db: &AnyPool) -> ApiResult<String> {
     const ALPHABET: &[u8] = b"23456789ABCDEFGHJKLMNPQRSTUVWXYZ";
     for _ in 0..10 {
         let code: String = (0..6)
             .map(|_| ALPHABET[rand::rng().random_range(0..ALPHABET.len())] as char)
             .collect();
-        if sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM lessons WHERE share_code = ?")
+        if sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM lessons WHERE share_code = $1")
             .bind(&code)
             .fetch_one(db)
             .await?
@@ -838,14 +979,27 @@ mod tests {
     };
     use tower::ServiceExt;
 
-    async fn test_service() -> Router {
-        let db = SqlitePoolOptions::new()
-            .max_connections(1)
-            .connect("sqlite::memory:")
+    async fn test_database() -> AnyPool {
+        let db = connect_database("sqlite::memory:", DatabaseKind::Sqlite)
             .await
             .unwrap();
-        sqlx::migrate!().run(&db).await.unwrap();
-        app(app_state(db, "test".into()), PathBuf::from("dist"))
+        run_sqlite_migrations(&db).await.unwrap();
+        db
+    }
+
+    async fn durable_test_database(database_url: &str) -> AnyPool {
+        let db = connect_database(database_url, DatabaseKind::Sqlite)
+            .await
+            .unwrap();
+        run_sqlite_migrations(&db).await.unwrap();
+        db
+    }
+
+    async fn test_service() -> Router {
+        app(
+            app_state(test_database().await, "test".into()),
+            PathBuf::from("dist"),
+        )
     }
 
     #[test]
@@ -979,12 +1133,7 @@ mod tests {
 
     #[tokio::test]
     async fn unnamed_lesson_tutor_link_can_read_reply_and_delete() {
-        let db = SqlitePoolOptions::new()
-            .max_connections(1)
-            .connect("sqlite::memory:")
-            .await
-            .unwrap();
-        sqlx::migrate!().run(&db).await.unwrap();
+        let db = test_database().await;
         let service = app(app_state(db, "test".into()), PathBuf::from("dist"));
         let create = Request::builder().method("POST").uri("/api/lessons").header("content-type", "application/json")
             .body(Body::from(r#"{"title":"HTTP debugging","checkpoints":[{"title":"Run tests","command":"npm test","successHint":"Tests pass"}]}"#)).unwrap();
@@ -1065,13 +1214,158 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn demo_workspace_is_ephemeral_isolated_and_removable() {
-        let db = SqlitePoolOptions::new()
-            .max_connections(1)
-            .connect("sqlite::memory:")
+    async fn fresh_replica_pools_share_create_read_and_authorized_deletion_regression() {
+        // This is the precise regression for the release-blocking topology
+        // failure: two independently opened pools stand in for two backend
+        // replicas. Every round creates through one, reads/deletes through
+        // the other, then confirms deletion through the original connection.
+        let database_file = std::env::temp_dir().join(format!("clc-replica-{}.db", Uuid::new_v4()));
+        let database_url = format!("sqlite://{}?mode=rwc", database_file.display());
+        let first_pool = durable_test_database(&database_url).await;
+        let second_pool = durable_test_database(&database_url).await;
+        let first_replica = app(
+            app_state(first_pool.clone(), "replica-a".into()),
+            PathBuf::from("dist"),
+        );
+        let second_replica = app(
+            app_state(second_pool.clone(), "replica-b".into()),
+            PathBuf::from("dist"),
+        );
+
+        let demo = first_replica
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/api/demo/workspaces")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
             .await
             .unwrap();
-        sqlx::migrate!().run(&db).await.unwrap();
+        assert_eq!(demo.status(), StatusCode::CREATED);
+        let demo: Value =
+            serde_json::from_slice(&to_bytes(demo.into_body(), 64 * 1024).await.unwrap()).unwrap();
+        let demo_id = demo["workspaceId"].as_str().unwrap();
+        assert_eq!(
+            second_replica
+                .clone()
+                .oneshot(
+                    Request::builder()
+                        .uri(format!("/api/demo/workspaces/{demo_id}"))
+                        .body(Body::empty())
+                        .unwrap(),
+                )
+                .await
+                .unwrap()
+                .status(),
+            StatusCode::OK,
+            "a demo remains usable after a replica change"
+        );
+        assert_eq!(
+            second_replica
+                .clone()
+                .oneshot(
+                    Request::builder()
+                        .method("DELETE")
+                        .uri(format!("/api/demo/workspaces/{demo_id}"))
+                        .body(Body::empty())
+                        .unwrap(),
+                )
+                .await
+                .unwrap()
+                .status(),
+            StatusCode::NO_CONTENT,
+            "demo reset is visible across replicas"
+        );
+
+        for round in 0..4 {
+            let (writer, other_replica) = if round % 2 == 0 {
+                (first_replica.clone(), second_replica.clone())
+            } else {
+                (second_replica.clone(), first_replica.clone())
+            };
+            let created = writer
+                .clone()
+                .oneshot(
+                    Request::builder()
+                        .method("POST")
+                        .uri("/api/lessons")
+                        .header("content-type", "application/json")
+                        .body(Body::from(format!(
+                            r#"{{"title":"Replica probe {round}","checkpoints":[{{"title":"Read from another replica","command":"npm test"}}]}}"#
+                        )))
+                        .unwrap(),
+                )
+                .await
+                .unwrap();
+            assert_eq!(created.status(), StatusCode::CREATED);
+            let created: Value =
+                serde_json::from_slice(&to_bytes(created.into_body(), 64 * 1024).await.unwrap())
+                    .unwrap();
+            let id = created["id"].as_str().unwrap();
+            let code = created["shareCode"].as_str().unwrap();
+            let token = created["tutorToken"].as_str().unwrap();
+
+            let read = other_replica
+                .clone()
+                .oneshot(
+                    Request::builder()
+                        .uri(format!("/api/lessons/code/{code}"))
+                        .body(Body::empty())
+                        .unwrap(),
+                )
+                .await
+                .unwrap();
+            assert_eq!(
+                read.status(),
+                StatusCode::OK,
+                "round {round} cross-replica read"
+            );
+
+            let deleted = other_replica
+                .oneshot(
+                    Request::builder()
+                        .method("DELETE")
+                        .uri(format!("/api/tutor/lessons/{id}"))
+                        .header("authorization", format!("Bearer {token}"))
+                        .body(Body::empty())
+                        .unwrap(),
+                )
+                .await
+                .unwrap();
+            assert_eq!(
+                deleted.status(),
+                StatusCode::NO_CONTENT,
+                "round {round} cross-replica authorized deletion"
+            );
+
+            let missing = writer
+                .oneshot(
+                    Request::builder()
+                        .uri(format!("/api/lessons/code/{code}"))
+                        .body(Body::empty())
+                        .unwrap(),
+                )
+                .await
+                .unwrap();
+            assert_eq!(
+                missing.status(),
+                StatusCode::NOT_FOUND,
+                "round {round} deletion is visible to the original replica"
+            );
+        }
+
+        drop(first_replica);
+        drop(second_replica);
+        first_pool.close().await;
+        second_pool.close().await;
+        let _ = std::fs::remove_file(database_file);
+    }
+
+    #[tokio::test]
+    async fn demo_workspace_is_ephemeral_isolated_and_removable() {
+        let db = test_database().await;
         let service = app(app_state(db.clone(), "test".into()), PathBuf::from("dist"));
 
         let created = service
@@ -1155,11 +1449,7 @@ mod tests {
         let fixture = std::env::temp_dir().join(format!("clc-routes-{}", Uuid::new_v4()));
         std::fs::create_dir_all(&fixture).unwrap();
         std::fs::write(fixture.join("index.html"), "<main>application shell</main>").unwrap();
-        let db = SqlitePoolOptions::new()
-            .max_connections(1)
-            .connect("sqlite::memory:")
-            .await
-            .unwrap();
+        let db = test_database().await;
         let service = app(app_state(db, "test".into()), fixture.clone());
 
         for path in ["/", "/demo", "/new", "/join/ABC123", "/lesson/example"] {
@@ -1193,14 +1483,7 @@ mod tests {
         std::fs::create_dir_all(&assets).unwrap();
         std::fs::write(assets.join("index-ABC123.js"), "console.log('fixture')").unwrap();
         let service = app(
-            app_state(
-                SqlitePoolOptions::new()
-                    .max_connections(1)
-                    .connect("sqlite::memory:")
-                    .await
-                    .unwrap(),
-                "test".into(),
-            ),
+            app_state(test_database().await, "test".into()),
             fixture.clone(),
         );
         let response = service
@@ -1222,13 +1505,8 @@ mod tests {
 
     #[tokio::test]
     async fn migration_retry_helper_accepts_an_already_migrated_database() {
-        let db = SqlitePoolOptions::new()
-            .max_connections(1)
-            .connect("sqlite::memory:")
-            .await
-            .unwrap();
-        run_migrations(&db).await.unwrap();
-        run_migrations(&db).await.unwrap();
+        let db = test_database().await;
+        run_sqlite_migrations(&db).await.unwrap();
         let lesson_table = sqlx::query_scalar::<_, i64>(
             "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'lessons'",
         )

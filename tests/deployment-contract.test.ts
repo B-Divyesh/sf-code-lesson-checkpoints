@@ -9,13 +9,14 @@ type Deployment = {
   targetPort: number;
   activeRevisionsMode: string;
   scale: { minReplicas: number; maxReplicas: number };
-  sqlite: {
-    databaseUrl: string;
-    mountPath: string;
-    volumeName: string;
-    storageType: string;
-    storageName: string;
+  postgres: {
+    keyVault: string;
+    migrationKeyVaultSecret: string;
+    keyVaultSecret: string;
+    containerSecret: string;
+    schema: string;
   };
+  coherenceProbe: { cycles: number; minimumDistinctReplicas: number };
 };
 
 const deployment = JSON.parse(
@@ -24,63 +25,68 @@ const deployment = JSON.parse(
 const dockerfile = readFileSync(new URL('../Dockerfile', import.meta.url), 'utf8');
 const deploymentScript = readFileSync(new URL('../scripts/apply-deployment-contract.sh', import.meta.url), 'utf8');
 const releaseScript = readFileSync(new URL('../scripts/deploy-release.sh', import.meta.url), 'utf8');
+const coherenceScript = readFileSync(new URL('../tests/live-coherence.mjs', import.meta.url), 'utf8');
+const postgresCoherenceScript = readFileSync(new URL('../tests/postgres-replica-coherence.mjs', import.meta.url), 'utf8');
 const extensionManifest = JSON.parse(
   readFileSync(new URL('../extension/package.json', import.meta.url), 'utf8'),
 ) as { repository?: { url?: string }; files?: string[] };
 const extensionLicense = readFileSync(new URL('../extension/LICENSE', import.meta.url), 'utf8');
 
-describe('SQLite container deployment contract', () => {
-  it('uses one durable writer instead of per-replica databases', () => {
+describe('shared PostgreSQL container deployment contract', () => {
+  it('uses a product-owned shared PostgreSQL schema for every replica', () => {
     expect(deployment.artifactClass).toBe('web-with-backend');
     expect(deployment.targetPort).toBe(8080);
     expect(deployment.activeRevisionsMode).toBe('Single');
-    expect(deployment.scale).toEqual({ minReplicas: 1, maxReplicas: 1 });
-    expect(deployment.sqlite).toMatchObject({
-      databaseUrl: 'sqlite:///data/checkpoints.db?mode=rwc&vfs=unix-dotfile',
-      mountPath: '/data',
-      volumeName: 'lesson-data',
-      storageType: 'AzureFile',
+    expect(deployment.scale).toEqual({ minReplicas: 3, maxReplicas: 3 });
+    expect(deployment.postgres).toEqual({
+      keyVault: 'sociobot-keyvault1',
+      migrationKeyVaultSecret: 'sociobot-db-migration-url',
+      keyVaultSecret: 'sociobot-db-runtime-url',
+      containerSecret: 'code-lesson-checkpoints-database-url',
+      schema: 'code_lesson_checkpoints',
     });
-    expect(deployment.sqlite.storageName).not.toBe('');
+    expect(deployment.coherenceProbe).toEqual({ cycles: 4, minimumDistinctReplicas: 2 });
   });
 
-  it('keeps the image runtime aligned with the durable mount contract', () => {
+  it('keeps the image self-starting while production injects only a secret reference', () => {
     expect(dockerfile).toContain('FROM rust:1-slim');
     expect(dockerfile).not.toMatch(/FROM rust:1\.\d+/);
-    expect(dockerfile).toContain('DATABASE_URL=sqlite:///data/checkpoints.db?mode=rwc');
-    expect(dockerfile).toContain('VOLUME ["/data"]');
+    expect(dockerfile).not.toContain('DATABASE_URL=');
+    expect(dockerfile).not.toContain('VOLUME ["/data"]');
     expect(dockerfile).toContain('EXPOSE 8080');
   });
 
-  it('applies and then reads back the live topology instead of only documenting it', () => {
+  it('applies and reads back the PostgreSQL secret, replica count, and no-local-volume boundary', () => {
+    expect(deploymentScript).toContain('az keyvault secret show');
+    expect(deploymentScript).toContain('az containerapp secret set');
+    expect(deploymentScript).toContain('secretRef:$containerSecret');
     expect(deploymentScript).toContain('az rest');
     expect(deploymentScript).toContain('maxReplicas:$maxReplicas');
-    expect(deploymentScript).toContain('storageType:"AzureFile"');
-    expect(deploymentScript).toContain('DATABASE_URL');
-    expect(deploymentScript).toContain('.properties.template.scale.maxReplicas == 1');
-    expect(deploymentScript).toContain('.properties.configuration.activeRevisionsMode == $revisionMode');
+    expect(deploymentScript).toContain('replica_count');
+    expect(deploymentScript).toContain('(.properties.template.volumes // []) | length == 0');
+    expect(deploymentScript).toContain('.secretRef == $secret');
     expect(deploymentScript).toContain('.properties.latestRevisionName == .properties.latestReadyRevisionName');
-    expect(deploymentScript).toContain('.storageName == $storage');
   });
 
-  it('makes topology enforcement and a persistence canary part of every image release', () => {
+  it('makes an image release restart and prove shared-state coherence across replicas', () => {
     expect(deployment.publicUrl).toBe('https://code-lesson-checkpoints.sociobot.in');
     expect(deployment.registry).toBe('sociobotregistry');
     expect(deployment.imageRepository).toBe('sf-code-lesson-checkpoints');
     expect(releaseScript).toContain('az acr build');
-    expect(releaseScript).toContain('az containerapp update');
-    expect(releaseScript).not.toMatch(/az containerapp up(?:\s|\\)/);
+    expect(releaseScript).toContain('migrate-postgres.sh');
+    expect(releaseScript).toContain('test:postgres-coherence');
+    expect(releaseScript).toContain('apply-deployment-contract.sh" "$image"');
     expect(releaseScript).toContain('Revision persistence canary');
-    expect(releaseScript.match(/apply-deployment-contract\.sh/g)).toHaveLength(2);
-    expect(releaseScript.indexOf('apply-deployment-contract.sh')).toBeLessThan(
-      releaseScript.indexOf('Revision persistence canary'),
-    );
-    expect(releaseScript.lastIndexOf('apply-deployment-contract.sh')).toBeGreaterThan(
-      releaseScript.indexOf('az containerapp update'),
-    );
-    expect(releaseScript.indexOf('EXPECTED_BUILD_SHA')).toBeGreaterThan(
-      releaseScript.lastIndexOf('apply-deployment-contract.sh'),
-    );
+    expect(releaseScript).toContain('az containerapp revision restart');
+    expect(releaseScript).toContain('COHERENCE_CYCLES');
+    expect(releaseScript).toContain('MINIMUM_DISTINCT_REPLICAS');
+    expect(releaseScript).toContain('EXPECTED_BUILD_SHA');
+    expect(coherenceScript).toContain('X-Forwarded-For');
+    expect(coherenceScript).toContain('x-checkpoint-replica');
+    expect(coherenceScript).toContain('for (let cycle = 1; cycle <= cycles; cycle += 1)');
+    expect(coherenceScript).toContain('authorized deletion');
+    expect(postgresCoherenceScript).toContain('cross-process authorized delete');
+    expect(postgresCoherenceScript).toContain('for (let cycle = 0; cycle < 4; cycle += 1)');
   });
 
   it('ships repository and license metadata in the extension package', () => {

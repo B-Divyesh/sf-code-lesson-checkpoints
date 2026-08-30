@@ -25,13 +25,12 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/* \
     && groupadd --system app \
     && useradd --system --gid app --home-dir /app app \
-    && mkdir -p /app/dist /data \
-    && chown -R app:app /app /data
+    && mkdir -p /app/dist \
+    && chown -R app:app /app
 WORKDIR /app
 COPY --from=backend /build/target/release/code-lesson-checkpoints /usr/local/bin/code-lesson-checkpoints
 COPY --from=web /build/dist ./dist
-ENV PORT=8080 DATABASE_URL=sqlite:///data/checkpoints.db?mode=rwc DIST_DIR=/app/dist BUILD_SHA=${BUILD_SHA}
+ENV PORT=8080 DIST_DIR=/app/dist BUILD_SHA=${BUILD_SHA}
 USER app
 EXPOSE 8080
-VOLUME ["/data"]
 CMD ["code-lesson-checkpoints"]

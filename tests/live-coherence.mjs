@@ -4,24 +4,48 @@ import { promisify } from 'node:util';
 
 const baseURL = (process.env.BASE_URL || 'http://127.0.0.1:8080').replace(/\/$/, '');
 const expectedBuild = process.env.EXPECTED_BUILD_SHA;
+const cycles = Number.parseInt(process.env.COHERENCE_CYCLES || '1', 10);
+const minimumDistinctReplicas = Number.parseInt(process.env.MINIMUM_DISTINCT_REPLICAS || '0', 10);
 const execFile = promisify(execFileCallback);
+const observedReplicas = new Set();
 let created;
 
+assert.ok(Number.isInteger(cycles) && cycles >= 1, 'COHERENCE_CYCLES must be at least one');
+assert.ok(
+  Number.isInteger(minimumDistinctReplicas) && minimumDistinctReplicas >= 0,
+  'MINIMUM_DISTINCT_REPLICAS must be zero or greater',
+);
+
 async function request(path, init = {}, attempt = 0) {
-  // A separate HTTP/1.1 curl process for every request prevents a sticky
-  // browser/connection route from hiding per-replica SQLite partitions.
+  // Every request is a separate HTTP/1.1 curl process. The generated query,
+  // closed connection, and distinct forwarded client key prevent sticky
+  // browser state from hiding a replica-local persistence boundary.
   const args = ['--silent', '--show-error', '--http1.1', '--no-keepalive', '--request', init.method ?? 'GET'];
+  const clientIp = `198.51.100.${(attempt + Number.parseInt(crypto.randomUUID().slice(0, 2), 16)) % 250 + 1}`;
+  args.push('--header', `X-Forwarded-For: ${clientIp}`);
   for (const [name, value] of Object.entries(init.headers ?? {})) args.push('--header', `${name}: ${value}`);
   if (init.body !== undefined) args.push('--data-binary', init.body);
-  args.push('--write-out', '\n%{http_code}', `${baseURL}${path}${path.includes('?') ? '&' : '?'}fresh=${crypto.randomUUID()}`);
+  args.push(
+    '--write-out',
+    '\n%{http_code}\n%header{x-checkpoint-replica}\n',
+    `${baseURL}${path}${path.includes('?') ? '&' : '?'}fresh=${crypto.randomUUID()}`,
+  );
   const { stdout } = await execFile('curl', args, { maxBuffer: 1024 * 1024 });
-  const separator = stdout.lastIndexOf('\n');
-  assert.ok(separator >= 0, 'curl response includes an HTTP status marker');
-  const response = { status: Number(stdout.slice(separator + 1)), body: stdout.slice(0, separator) };
+  const lines = stdout.split('\n');
+  const finalMarker = lines.pop();
+  const replica = lines.pop();
+  const status = lines.pop();
+  assert.equal(finalMarker, '', 'curl response includes a final marker');
+  const response = {
+    status: Number(status),
+    replica: replica?.trim() ?? '',
+    body: lines.join('\n'),
+  };
+  assert.ok(Number.isInteger(response.status), 'curl response includes an HTTP status marker');
+  if (response.replica) observedReplicas.add(response.replica);
   if (response.status === 429 && attempt < 3) {
-    // This suite verifies replica/storage coherence, not limiter capacity.
-    // Respect the server policy and retry through a new connection so a
-    // legitimate long lifecycle does not become its own load test.
+    // This suite verifies shared storage, not limiter capacity. Retry through
+    // another fresh connection while respecting the product's HTTP policy.
     await new Promise((resolve) => setTimeout(resolve, 1_050));
     return request(path, init, attempt + 1);
   }
@@ -39,27 +63,23 @@ async function repeat(count, action, expectedStatus, label) {
   return responses;
 }
 
-try {
-  const health = await json(await request('/health'));
-  assert.equal(health.response.status, 200);
-  if (expectedBuild) assert.equal(health.body.build, expectedBuild, 'live build identity');
-
+async function runLifecycle(cycle) {
   const create = await json(await request('/api/lessons', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      title: 'Fresh-connection coherence regression',
+      title: `Fresh-connection coherence regression ${cycle}`,
       checkpoints: [{ title: 'Run the suite', command: 'npm test', successHint: 'All tests pass' }],
     }),
   }));
-  assert.equal(create.response.status, 201);
+  assert.equal(create.response.status, 201, `cycle ${cycle} create`);
   created = create.body;
   const authorization = { Authorization: `Bearer ${created.tutorToken}` };
 
-  const learnerReads = await repeat(30, () => request(`/api/lessons/code/${created.shareCode}`), 200, 'learner reads');
+  const learnerReads = await repeat(30, () => request(`/api/lessons/code/${created.shareCode}`), 200, `cycle ${cycle} learner reads`);
   const lesson = JSON.parse(learnerReads[0].body);
   const checkpointId = lesson.checkpoints[0].id;
-  await repeat(30, () => request(`/api/tutor/lessons/${created.id}`, { headers: authorization }), 200, 'tutor reads');
+  await repeat(30, () => request(`/api/tutor/lessons/${created.id}`, { headers: authorization }), 200, `cycle ${cycle} tutor reads`);
 
   const submitted = await json(await request(`/api/lessons/code/${created.shareCode}/checkpoints/${checkpointId}/submissions`, {
     method: 'POST',
@@ -71,9 +91,9 @@ try {
       consented: true,
     }),
   }));
-  assert.equal(submitted.response.status, 201);
+  assert.equal(submitted.response.status, 201, `cycle ${cycle} submit`);
 
-  const tutorReads = await repeat(30, () => request(`/api/tutor/lessons/${created.id}`, { headers: authorization }), 200, 'post-submit tutor reads');
+  const tutorReads = await repeat(30, () => request(`/api/tutor/lessons/${created.id}`, { headers: authorization }), 200, `cycle ${cycle} post-submit tutor reads`);
   const tutorLesson = JSON.parse(tutorReads[0].body);
   const submission = tutorLesson.checkpoints[0].submissions[0];
   assert.equal(submission.output, 'DATABASE_URL=[redacted]');
@@ -83,17 +103,29 @@ try {
     headers: { ...authorization, 'Content-Type': 'application/json' },
     body: JSON.stringify({ reply: 'Inspect the request boundary.' }),
   });
-  assert.equal(reply.status, 200);
+  assert.equal(reply.status, 200, `cycle ${cycle} reply`);
 
-  const repliedReads = await repeat(30, () => request(`/api/lessons/code/${created.shareCode}`), 200, 'post-reply learner reads');
+  const repliedReads = await repeat(30, () => request(`/api/lessons/code/${created.shareCode}`), 200, `cycle ${cycle} post-reply learner reads`);
   const repliedLesson = JSON.parse(repliedReads[0].body);
   assert.equal(repliedLesson.checkpoints[0].submissions[0].teacherReply, 'Inspect the request boundary.');
 
   const removed = await request(`/api/tutor/lessons/${created.id}`, { method: 'DELETE', headers: authorization });
-  assert.equal(removed.status, 204);
-  const deletedReads = await repeat(20, () => request(`/api/lessons/code/${created.shareCode}`), 404, 'post-delete learner reads');
+  assert.equal(removed.status, 204, `cycle ${cycle} authorized deletion`);
+  await repeat(20, () => request(`/api/lessons/code/${created.shareCode}`), 404, `cycle ${cycle} post-delete learner reads`);
   created = undefined;
-  console.log('Live coherence passed: separate-process HTTP/1.1 create/read/submit/reply/delete is consistent.');
+}
+
+try {
+  const health = await json(await request('/health'));
+  assert.equal(health.response.status, 200);
+  if (expectedBuild) assert.equal(health.body.build, expectedBuild, 'live build identity');
+
+  for (let cycle = 1; cycle <= cycles; cycle += 1) await runLifecycle(cycle);
+  assert.ok(
+    observedReplicas.size >= minimumDistinctReplicas,
+    `expected at least ${minimumDistinctReplicas} responding replicas, observed ${observedReplicas.size}: ${[...observedReplicas].join(', ')}`,
+  );
+  console.log(`Live coherence passed: ${cycles} fresh-connection create/read/submit/reply/delete cycles across ${observedReplicas.size} responding replica process(es).`);
 } finally {
   if (created) {
     await request(`/api/tutor/lessons/${created.id}`, {

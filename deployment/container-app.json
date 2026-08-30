@@ -10,14 +10,18 @@
   "targetPort": 8080,
   "activeRevisionsMode": "Single",
   "scale": {
-    "minReplicas": 1,
-    "maxReplicas": 1
+    "minReplicas": 3,
+    "maxReplicas": 3
   },
-  "sqlite": {
-    "databaseUrl": "sqlite:///data/checkpoints.db?mode=rwc&vfs=unix-dotfile",
-    "mountPath": "/data",
-    "volumeName": "lesson-data",
-    "storageType": "AzureFile",
-    "storageName": "code-lesson-checkpoints-data"
+  "postgres": {
+    "keyVault": "sociobot-keyvault1",
+    "migrationKeyVaultSecret": "sociobot-db-migration-url",
+    "keyVaultSecret": "sociobot-db-runtime-url",
+    "containerSecret": "code-lesson-checkpoints-database-url",
+    "schema": "code_lesson_checkpoints"
+  },
+  "coherenceProbe": {
+    "cycles": 4,
+    "minimumDistinctReplicas": 2
   }
 }
