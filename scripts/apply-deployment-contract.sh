@@ -11,9 +11,9 @@ done
 
 resource_group=$(jq -r '.resourceGroup' "$contract")
 app_name=$(jq -r '.appName' "$contract")
-key_vault=$(jq -r '.postgres.keyVault' "$contract")
-key_vault_secret=$(jq -r '.postgres.keyVaultSecret' "$contract")
-container_secret=$(jq -r '.postgres.containerSecret' "$contract")
+volume_name=$(jq -r '.storage.volumeName' "$contract")
+storage_name=$(jq -r '.storage.storageName' "$contract")
+data_dir=$(jq -r '.dataDir' "$contract")
 min_replicas=$(jq -r '.scale.minReplicas' "$contract")
 max_replicas=$(jq -r '.scale.maxReplicas' "$contract")
 revision_mode=$(jq -r '.activeRevisionsMode' "$contract")
@@ -22,70 +22,26 @@ app_json=$(az containerapp show --resource-group "$resource_group" --name "$app_
 app_id=$(jq -r '.id' <<<"$app_json")
 api_version=2024-03-01
 
-# The connection string travels from Key Vault to the management API through
-# a mode-600 FIFO. It is not interpolated into a shell command, source file,
-# log, process list, or ARM patch argument.
-secret_payload_dir=$(mktemp -d)
-secret_payload="$secret_payload_dir/container-app-secret.json"
-mkfifo -m 600 "$secret_payload"
-cleanup_secret_payload() {
-  rm -f "$secret_payload"
-  rmdir "$secret_payload_dir" 2>/dev/null || true
-}
-trap cleanup_secret_payload EXIT
-(
-  az keyvault secret show \
-    --vault-name "$key_vault" \
-    --name "$key_vault_secret" \
-    --query value \
-    --output tsv \
-    | jq -Rs --arg name "$container_secret" \
-      '{properties:{configuration:{secrets:[{name:$name,value:(rtrimstr("\n"))}]}}}' \
-      > "$secret_payload"
-) &
-secret_writer=$!
-az rest \
-  --method patch \
-  --url "https://management.azure.com${app_id}?api-version=${api_version}" \
-  --body "@$secret_payload" \
-  --output none
-wait "$secret_writer"
-
-# Container Apps may serialize a secret update as a short provisioning
-# operation. Do not race its template patch or the control plane rejects the
-# second update with ContainerAppOperationInProgress.
-for attempt in $(seq 1 30); do
-  secret_state=$(az containerapp show \
-    --resource-group "$resource_group" \
-    --name "$app_name" \
-    --query properties.provisioningState --output tsv)
-  if [[ "$secret_state" == "Succeeded" ]]; then
-    break
-  fi
-  if [[ "$attempt" == 30 ]]; then
-    echo "Container Apps did not finish the PostgreSQL secret update." >&2
-    exit 1
-  fi
-  sleep 2
-done
-
-app_json=$(az containerapp show --resource-group "$resource_group" --name "$app_name" --output json)
-
+# The product has one serving process and one durable state boundary. Keep
+# only PORT in the application environment; all lesson state is an SQLite file
+# on the product-owned Azure Files mount at /data.
 patch=$(jq \
-  --arg containerSecret "$container_secret" \
+  --arg volumeName "$volume_name" \
+  --arg storageName "$storage_name" \
+  --arg dataDir "$data_dir" \
   --arg revisionMode "$revision_mode" \
   --arg image "$image" \
   --argjson minReplicas "$min_replicas" \
   --argjson maxReplicas "$max_replicas" \
   '.properties.template.containers |= map(if .name == "app" then
-       .volumeMounts = null |
-       .env = (((.env // []) | map(select(.name != "DATABASE_URL"))) + [{name:"DATABASE_URL",secretRef:$containerSecret}]) |
+       .volumeMounts = [{volumeName:$volumeName,mountPath:$dataDir}] |
+       .env = [{name:"PORT",value:"8080"}] |
        if $image == "" then . else .image = $image end
      else . end) |
    {properties:{configuration:{activeRevisionsMode:$revisionMode},template:{
      containers:.properties.template.containers,
      scale:{minReplicas:$minReplicas,maxReplicas:$maxReplicas},
-     volumes:null
+     volumes:[{name:$volumeName,storageType:"AzureFile",storageName:$storageName}]
    }}}' <<<"$app_json")
 
 az rest \
@@ -96,27 +52,29 @@ az rest \
 
 for attempt in $(seq 1 48); do
   state=$(az containerapp show --resource-group "$resource_group" --name "$app_name" --output json)
+  revision=$(jq -r '.properties.latestReadyRevisionName // empty' <<<"$state")
   replica_count=$(az containerapp replica list \
     --resource-group "$resource_group" \
     --name "$app_name" \
-    --revision "$(jq -r '.properties.latestReadyRevisionName // empty' <<<"$state")" \
+    --revision "$revision" \
     --query 'length(@)' --output tsv 2>/dev/null || true)
-  if jq -e --arg secret "$container_secret" --arg revisionMode "$revision_mode" \
+  if jq -e --arg volume "$volume_name" --arg storage "$storage_name" --arg dataDir "$data_dir" --arg revisionMode "$revision_mode" \
     --argjson minReplicas "$min_replicas" --argjson maxReplicas "$max_replicas" \
     '.properties.provisioningState == "Succeeded" and
      .properties.latestRevisionName == .properties.latestReadyRevisionName and
      any(.properties.configuration.ingress.traffic[]; .latestRevision == true and .weight == 100) and
      .properties.configuration.activeRevisionsMode == $revisionMode and
      .properties.template.scale.minReplicas == $minReplicas and .properties.template.scale.maxReplicas == $maxReplicas and
-     any(.properties.template.containers[]; .name == "app" and any(.env[]; .name == "DATABASE_URL" and .secretRef == $secret)) and
-     ((.properties.template.volumes // []) | length == 0) and
-     all(.properties.template.containers[]; (.volumeMounts // []) | length == 0)' \
-    <<<"$state" >/dev/null && [[ "$replica_count" -ge "$min_replicas" ]]; then
-    echo "Deployment contract applied: $min_replicas shared-PostgreSQL replicas with no local data volume."
+     ((.properties.template.volumes // []) | any(.name == $volume and .storageType == "AzureFile" and .storageName == $storage)) and
+     any(.properties.template.containers[]; .name == "app" and
+       (.env == [{name:"PORT",value:"8080"}]) and
+       (.volumeMounts == [{volumeName:$volume,mountPath:$dataDir}]))' \
+    <<<"$state" >/dev/null && [[ "$replica_count" == "$min_replicas" ]]; then
+    echo "Deployment contract applied: one durable /data mount and one serving replica."
     exit 0
   fi
   sleep 5
 done
 
-echo "Deployment contract did not become ready with the PostgreSQL secret and replica count." >&2
+echo "Deployment contract did not become ready with its durable single-replica boundary." >&2
 exit 1

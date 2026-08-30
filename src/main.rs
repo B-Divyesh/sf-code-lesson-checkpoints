@@ -1,12 +1,13 @@
 use std::{
     env,
     net::{IpAddr, SocketAddr},
-    path::PathBuf,
+    path::{Path as FilePath, PathBuf},
+    str::FromStr,
     time::{Duration, SystemTime},
 };
 
 use axum::{
-    extract::{ConnectInfo, DefaultBodyLimit, Path, Request, State},
+    extract::{ConnectInfo, DefaultBodyLimit, Path, State},
     http::{header, HeaderMap, HeaderValue, Method, StatusCode},
     response::{IntoResponse, Response},
     routing::{get, get_service, post, put},
@@ -17,9 +18,8 @@ use regex::Regex;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use sqlx::{
-    any::{install_default_drivers, AnyPoolOptions},
-    postgres::PgPoolOptions,
-    AnyPool, Row,
+    sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions},
+    Row, SqlitePool,
 };
 use tower_governor::{
     governor::GovernorConfigBuilder, key_extractor::KeyExtractor, GovernorError, GovernorLayer,
@@ -35,20 +35,25 @@ use tracing::{info, warn};
 use uuid::Uuid;
 
 const DEMO_TTL: Duration = Duration::from_secs(24 * 60 * 60);
-const POSTGRES_SCHEMA: &str = "code_lesson_checkpoints";
-const POSTGRES_RUNTIME_ROLE: &str = "sociobot_runtime";
+const INITIAL_SCHEMA: &str = include_str!("../migrations/20260828000000_init.sql");
+const DEMO_SCHEMA: &str = include_str!("../migrations/20260830000000_demo_workspaces.sql");
+
+// Keep the application's SQL interface limited to the SQLite driver and its
+// core query primitives. This prevents optional drivers from entering the
+// release dependency graph.
+mod sqlx {
+    pub use sqlx_core::{query::query, query_scalar::query_scalar, row::Row, Error};
+    pub use sqlx_sqlite::SqlitePool;
+
+    pub mod sqlite {
+        pub use sqlx_sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions};
+    }
+}
 
 #[derive(Clone)]
 struct AppState {
-    db: AnyPool,
+    db: SqlitePool,
     build_sha: String,
-    replica_id: String,
-}
-
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-enum DatabaseKind {
-    Sqlite,
-    Postgres,
 }
 
 /// The factory ingress writes the originating client as the first
@@ -186,51 +191,27 @@ async fn main() -> anyhow::Result<()> {
         .json()
         .init();
 
-    let supplied_database_url = env::var("DATABASE_URL").ok();
-    let database_url = supplied_database_url
-        .as_deref()
-        .unwrap_or("sqlite://checkpoints.db?mode=rwc");
-    let supplied_build_sha = env::var("BUILD_SHA").ok();
-    let build_sha = supplied_build_sha
-        .as_deref()
-        .unwrap_or("development")
-        .to_owned();
-    let supplied_dist_dir = env::var("DIST_DIR").ok();
-    let dist = PathBuf::from(supplied_dist_dir.as_deref().unwrap_or("dist"));
-    let database_kind = database_kind_from_url(database_url)?;
-    let migration_only = env::var("MIGRATE_ONLY").ok().as_deref() == Some("1");
-    // Do not log values: DATABASE_URL can itself contain credentials. This
-    // single startup record makes the container's configuration provenance
-    // observable without exposing a secret.
+    let state_file = runtime_state_file();
+    let build_sha = option_env!("BUILD_SHA").unwrap_or("development").to_owned();
+    let dist = default_dist_dir();
+    // The container needs only PORT. State uses the durable mount whenever it
+    // is available, while local development falls back to the working folder.
     info!(
-        database_url = if supplied_database_url.is_some() {
-            "supplied"
+        state_location = if state_file.starts_with("/data") {
+            "/data"
+        } else {
+            "working-directory"
+        },
+        build_identity = if option_env!("BUILD_SHA").is_some() {
+            "compiled"
         } else {
             "default"
         },
-        build_sha = if supplied_build_sha.is_some() {
-            "supplied"
-        } else {
-            "default"
-        },
-        dist_dir = if supplied_dist_dir.is_some() {
-            "supplied"
-        } else {
-            "default"
-        },
-        database_kind = ?database_kind,
+        dist_location = "default",
         "runtime configuration resolved"
     );
-    if database_kind == DatabaseKind::Postgres && migration_only {
-        migrate_postgres(database_url).await?;
-        info!("PostgreSQL schema migration completed");
-        return Ok(());
-    }
-    let db = connect_database(database_url, database_kind).await?;
-    match database_kind {
-        DatabaseKind::Sqlite => run_sqlite_migrations(&db).await?,
-        DatabaseKind::Postgres => verify_postgres_schema(&db).await?,
-    }
+    let db = connect_state(&state_file).await?;
+    run_sqlite_migrations(&db).await?;
     let state = app_state(db, build_sha);
     let app = app(state, dist);
     let port = env::var("PORT")
@@ -249,52 +230,55 @@ async fn main() -> anyhow::Result<()> {
     Ok(())
 }
 
-fn app_state(db: AnyPool, build_sha: String) -> AppState {
-    AppState {
-        db,
-        build_sha,
-        replica_id: random_string(12),
-    }
+fn app_state(db: SqlitePool, build_sha: String) -> AppState {
+    AppState { db, build_sha }
 }
 
-fn database_kind_from_url(database_url: &str) -> anyhow::Result<DatabaseKind> {
-    if database_url.starts_with("postgres://") || database_url.starts_with("postgresql://") {
-        return Ok(DatabaseKind::Postgres);
-    }
-    if database_url.starts_with("sqlite:") {
-        return Ok(DatabaseKind::Sqlite);
-    }
-    anyhow::bail!("DATABASE_URL must use sqlite://, postgres://, or postgresql://")
+fn runtime_state_file() -> PathBuf {
+    let durable_dir = FilePath::new("/data");
+    state_file_for(durable_dir, durable_dir.is_dir())
 }
 
-async fn connect_database(database_url: &str, kind: DatabaseKind) -> anyhow::Result<AnyPool> {
-    install_default_drivers();
-    let max_connections = if kind == DatabaseKind::Postgres {
-        10
+fn state_file_for(durable_dir: &FilePath, durable_dir_exists: bool) -> PathBuf {
+    if durable_dir_exists {
+        durable_dir.join("checkpoints.db")
     } else {
-        1
-    };
-    let options = AnyPoolOptions::new()
-        .max_connections(max_connections)
-        .after_connect(move |connection, _| {
-            Box::pin(async move {
-                if kind == DatabaseKind::Postgres {
-                    sqlx::query(&format!("SET search_path TO {POSTGRES_SCHEMA}"))
-                        .execute(&mut *connection)
-                        .await?;
-                }
-                Ok(())
-            })
-        });
-    Ok(options.connect(database_url).await?)
+        PathBuf::from("checkpoints.db")
+    }
 }
 
-async fn run_sqlite_migrations(db: &AnyPool) -> anyhow::Result<()> {
-    let migrator = sqlx::migrate!();
+fn default_dist_dir() -> PathBuf {
+    let container_dist = FilePath::new("/app/dist");
+    if container_dist.is_dir() {
+        container_dist.into()
+    } else {
+        PathBuf::from("dist")
+    }
+}
+
+async fn connect_state(state_file: &FilePath) -> anyhow::Result<SqlitePool> {
+    let connection = format!("sqlite://{}?mode=rwc", state_file.display());
+    let options = SqliteConnectOptions::from_str(&connection)?
+        .create_if_missing(true)
+        .foreign_keys(true)
+        .journal_mode(SqliteJournalMode::Wal)
+        .busy_timeout(Duration::from_secs(5));
+    Ok(SqlitePoolOptions::new()
+        .max_connections(1)
+        .connect_with(options)
+        .await?)
+}
+
+async fn run_sqlite_migrations(db: &SqlitePool) -> anyhow::Result<()> {
     const ATTEMPTS: u8 = 6;
     for attempt in 1..=ATTEMPTS {
-        match migrator.run(db).await {
-            Ok(()) => return Ok(()),
+        match async {
+            sqlx::query(INITIAL_SCHEMA).execute(db).await?;
+            sqlx::query(DEMO_SCHEMA).execute(db).await
+        }
+        .await
+        {
+            Ok(_) => return Ok(()),
             Err(error)
                 if attempt < ATTEMPTS
                     && error
@@ -315,50 +299,14 @@ async fn run_sqlite_migrations(db: &AnyPool) -> anyhow::Result<()> {
     unreachable!("migration retry loop always returns")
 }
 
-async fn migrate_postgres(database_url: &str) -> anyhow::Result<()> {
-    // Only the short-lived deployment migration command uses the privileged
-    // migration URL. Serving replicas receive the runtime role, which cannot
-    // create schemas or alter tables.
-    let setup = PgPoolOptions::new()
-        .max_connections(1)
-        .connect(database_url)
-        .await?;
-    sqlx::query(&format!("CREATE SCHEMA IF NOT EXISTS {POSTGRES_SCHEMA}"))
-        .execute(&setup)
-        .await?;
-    sqlx::query(&format!("SET search_path TO {POSTGRES_SCHEMA}"))
-        .execute(&setup)
-        .await?;
-    sqlx::migrate!("./migrations/postgres").run(&setup).await?;
-    sqlx::query(&format!(
-        "GRANT USAGE ON SCHEMA {POSTGRES_SCHEMA} TO {POSTGRES_RUNTIME_ROLE}"
-    ))
-    .execute(&setup)
-    .await?;
-    sqlx::query(&format!(
-        "GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA {POSTGRES_SCHEMA} TO {POSTGRES_RUNTIME_ROLE}"
-    ))
-        .execute(&setup)
-        .await?;
-    setup.close().await;
-    Ok(())
-}
-
-async fn verify_postgres_schema(db: &AnyPool) -> anyhow::Result<()> {
-    sqlx::query_scalar::<_, i64>("SELECT 1 FROM lessons LIMIT 1")
-        .fetch_optional(db)
-        .await?;
-    Ok(())
-}
-
 fn app(state: AppState, dist: PathBuf) -> Router {
-    let origins = env::var("CORS_ORIGIN")
-        .unwrap_or_else(|_| {
-            "https://code-lesson-checkpoints.sociobot.in,http://localhost:5173".into()
-        })
-        .split(',')
-        .filter_map(|s| s.trim().parse::<HeaderValue>().ok())
-        .collect::<Vec<_>>();
+    let origins = [
+        "https://code-lesson-checkpoints.sociobot.in",
+        "http://localhost:5173",
+    ]
+    .into_iter()
+    .map(|origin| HeaderValue::from_str(origin).expect("configured origin is valid"))
+    .collect::<Vec<_>>();
     let cors = CorsLayer::new()
         .allow_origin(origins)
         .allow_methods([Method::GET, Method::POST, Method::PUT, Method::DELETE])
@@ -435,27 +383,7 @@ fn app(state: AppState, dist: PathBuf) -> Router {
         .layer(SetResponseHeaderLayer::if_not_present(header::REFERRER_POLICY, HeaderValue::from_static("strict-origin-when-cross-origin")))
         .layer(SetResponseHeaderLayer::if_not_present(header::CONTENT_SECURITY_POLICY, HeaderValue::from_static("default-src 'self'; img-src 'self' data:; style-src 'self'; script-src 'self'; connect-src 'self' https://api.sociobot.in https://pilot-api.sociobot.in; font-src 'self'; base-uri 'none'; frame-ancestors 'none'; form-action 'self' https://api.sociobot.in")))
         .layer(TraceLayer::new_for_http())
-        .layer(axum::middleware::from_fn_with_state(
-            state.clone(),
-            mark_replica_response,
-        ))
         .with_state(state)
-}
-
-async fn mark_replica_response(
-    State(state): State<AppState>,
-    request: Request,
-    next: axum::middleware::Next,
-) -> Response {
-    let mut response = next.run(request).await;
-    // A random process identifier lets the release probe prove that separate
-    // replica processes can immediately observe one shared record. It carries
-    // no host name, customer data, or deployment credential.
-    response.headers_mut().insert(
-        header::HeaderName::from_static("x-checkpoint-replica"),
-        HeaderValue::from_str(&state.replica_id).expect("generated replica id is a header value"),
-    );
-    response
 }
 
 fn rate_limit_error(error: GovernorError) -> Response {
@@ -491,14 +419,13 @@ async fn create_demo_workspace(State(state): State<AppState>) -> (StatusCode, Js
     let lesson = sample_demo_lesson();
     let lesson_json = serde_json::to_string(&lesson).expect("sample demo serializes");
     // Demo rows are deliberately separate from lessons. They expire after 24
-    // hours and are shared across replicas so a load-balanced demo stays
-    // usable without ever touching a tutor's real lesson records.
+    // hours and remain separate from real lesson records.
     let _ = sqlx::query("DELETE FROM demo_workspaces WHERE expires_at <= $1")
         .bind(unix_seconds())
         .execute(&state.db)
         .await;
-    // A failed demo provision is represented by the same useful HTTP error as
-    // the rest of the API rather than silently creating per-replica state.
+    // A failed demo provision receives the same useful HTTP error as the rest
+    // of the API rather than silently creating an incomplete sample.
     if sqlx::query("INSERT INTO demo_workspaces (id, expires_at, lesson_json) VALUES ($1, $2, $3)")
         .bind(&id)
         .bind(expires_at)
@@ -795,7 +722,7 @@ async fn delete_lesson(
     Ok(StatusCode::NO_CONTENT)
 }
 
-async fn load_lesson(db: &AnyPool, id: &str) -> ApiResult<LessonView> {
+async fn load_lesson(db: &SqlitePool, id: &str) -> ApiResult<LessonView> {
     let row = sqlx::query(
         "SELECT id, title, learner_name, share_code, created_at FROM lessons WHERE id = $1",
     )
@@ -841,7 +768,7 @@ async fn load_lesson(db: &AnyPool, id: &str) -> ApiResult<LessonView> {
     })
 }
 
-async fn authorize_tutor(db: &AnyPool, lesson_id: &str, headers: &HeaderMap) -> ApiResult<()> {
+async fn authorize_tutor(db: &SqlitePool, lesson_id: &str, headers: &HeaderMap) -> ApiResult<()> {
     let token = headers
         .get(header::AUTHORIZATION)
         .and_then(|h| h.to_str().ok())
@@ -912,7 +839,7 @@ fn random_string(len: usize) -> String {
         .collect()
 }
 
-async fn create_unique_code(db: &AnyPool) -> ApiResult<String> {
+async fn create_unique_code(db: &SqlitePool) -> ApiResult<String> {
     const ALPHABET: &[u8] = b"23456789ABCDEFGHJKLMNPQRSTUVWXYZ";
     for _ in 0..10 {
         let code: String = (0..6)
@@ -934,7 +861,7 @@ async fn create_unique_code(db: &AnyPool) -> ApiResult<String> {
 }
 
 fn redact_and_cap(value: &str, max: usize) -> String {
-    let secret = Regex::new(r"(?i)((?:(?:api[_-]?key|token|secret|password|pass|pwd|credentials?|database(?:[_-]?url)?|(?:db|redis|mongo|postgres|pg)[_-]?url|connection[_-]?string|dsn)|[a-z][a-z0-9_-]*?(?:api[_-]?key|token|secret|password|pass|pwd|credentials?|database(?:[_-]?url)?|(?:db|redis|mongo|postgres|pg)[_-]?url|connection[_-]?string|dsn))\s*[=:]\s*)([^\s]+)")
+    let secret = Regex::new(r"(?i)((?:(?:api[_-]?key|token|secret|password|pass|pwd|credentials?|(?:db|redis|mongo)[_-]?(?:uri|connection)|connection[_-]?string|dsn)|[a-z][a-z0-9_-]*?(?:api[_-]?key|token|secret|password|pass|pwd|credentials?|(?:db|redis|mongo)[_-]?(?:uri|connection)|connection[_-]?string|dsn))\s*[=:]\s*)([^\s]+)")
         .expect("valid secret regex");
     let authorization = Regex::new(r"(?i)(authorization\s*:\s*)(?:bearer\s+)?([^\s]+)")
         .expect("valid authorization regex");
@@ -979,18 +906,22 @@ mod tests {
     };
     use tower::ServiceExt;
 
-    async fn test_database() -> AnyPool {
-        let db = connect_database("sqlite::memory:", DatabaseKind::Sqlite)
+    async fn test_database() -> SqlitePool {
+        let db = SqlitePoolOptions::new()
+            .max_connections(1)
+            .connect_with(
+                SqliteConnectOptions::from_str("sqlite::memory:")
+                    .unwrap()
+                    .foreign_keys(true),
+            )
             .await
             .unwrap();
         run_sqlite_migrations(&db).await.unwrap();
         db
     }
 
-    async fn durable_test_database(database_url: &str) -> AnyPool {
-        let db = connect_database(database_url, DatabaseKind::Sqlite)
-            .await
-            .unwrap();
+    async fn durable_test_database(state_file: &FilePath) -> SqlitePool {
+        let db = connect_state(state_file).await.unwrap();
         run_sqlite_migrations(&db).await.unwrap();
         db
     }
@@ -1004,12 +935,11 @@ mod tests {
 
     #[test]
     fn redacts_common_secrets_and_caps_output() {
-        let value = "API_KEY=supersecret\nAuthorization: Bearer abcdefghijklmnopqrstuvwxyz\nDATABASE_URL=postgres://qa_user:qa_password@db.example/private\nredis://cache_user:cache_password@cache.example/0\nok";
+        let value = "API_KEY=supersecret\nAuthorization: Bearer abcdefghijklmnopqrstuvwxyz\nSERVICE_TOKEN=service-secret\nredis://cache_user:cache_password@cache.example/0\nok";
         let redacted = redact_and_cap(value, 200);
         assert!(!redacted.contains("supersecret"));
         assert!(!redacted.contains("abcdefghijklmnopqrstuvwxyz"));
-        assert!(!redacted.contains("qa_user"));
-        assert!(!redacted.contains("qa_password"));
+        assert!(!redacted.contains("service-secret"));
         assert!(!redacted.contains("cache_password"));
         assert!(redacted.contains("[redacted]"));
     }
@@ -1017,6 +947,18 @@ mod tests {
     #[test]
     fn normalizes_share_codes() {
         assert_eq!(normalize_code("ab-12 cd"), "AB12CD");
+    }
+
+    #[test]
+    fn durable_state_file_uses_the_data_mount_when_available() {
+        assert_eq!(
+            state_file_for(FilePath::new("/data"), true),
+            PathBuf::from("/data/checkpoints.db")
+        );
+        assert_eq!(
+            state_file_for(FilePath::new("/data"), false),
+            PathBuf::from("checkpoints.db")
+        );
     }
 
     #[test]
@@ -1159,7 +1101,7 @@ mod tests {
         let checkpoint_id = lesson["checkpoints"][0]["id"].as_str().unwrap();
 
         let submit = Request::builder().method("POST").uri(format!("/api/lessons/code/{code}/checkpoints/{checkpoint_id}/submissions"))
-            .header("content-type", "application/json").body(Body::from(r#"{"status":"blocked","output":"DATABASE_URL=postgres://qa_user:qa_password@db.example/private","note":"I expected green tests","consented":true}"#)).unwrap();
+            .header("content-type", "application/json").body(Body::from(r#"{"status":"blocked","output":"SERVICE_TOKEN=relay-secret","note":"I expected green tests","consented":true}"#)).unwrap();
         assert_eq!(
             service.clone().oneshot(submit).await.unwrap().status(),
             StatusCode::CREATED
@@ -1177,7 +1119,7 @@ mod tests {
                 .unwrap();
         assert_eq!(
             lesson["checkpoints"][0]["submissions"][0]["output"],
-            "DATABASE_URL=[redacted]"
+            "SERVICE_TOKEN=[redacted]"
         );
         assert_eq!(
             lesson["checkpoints"][0]["submissions"][0]["note"],
@@ -1214,116 +1156,61 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn fresh_replica_pools_share_create_read_and_authorized_deletion_regression() {
-        // This is the precise regression for the release-blocking topology
-        // failure: two independently opened pools stand in for two backend
-        // replicas. Every round creates through one, reads/deletes through
-        // the other, then confirms deletion through the original connection.
-        let database_file = std::env::temp_dir().join(format!("clc-replica-{}.db", Uuid::new_v4()));
-        let database_url = format!("sqlite://{}?mode=rwc", database_file.display());
-        let first_pool = durable_test_database(&database_url).await;
-        let second_pool = durable_test_database(&database_url).await;
-        let first_replica = app(
-            app_state(first_pool.clone(), "replica-a".into()),
+    async fn sqlite_state_on_a_durable_mount_survives_a_process_restart_regression() {
+        // This is the exact persistence regression: create through one pool,
+        // close it as a process shutdown would, reopen the same state file,
+        // then read and delete through the replacement service.
+        let mount_dir = std::env::temp_dir().join(format!("clc-data-mount-{}", Uuid::new_v4()));
+        std::fs::create_dir_all(&mount_dir).unwrap();
+        let state_file = state_file_for(&mount_dir, true);
+        let first_pool = durable_test_database(&state_file).await;
+        let first_service = app(
+            app_state(first_pool.clone(), "first".into()),
             PathBuf::from("dist"),
         );
-        let second_replica = app(
-            app_state(second_pool.clone(), "replica-b".into()),
-            PathBuf::from("dist"),
-        );
-
-        let demo = first_replica
-            .clone()
+        let created = first_service
             .oneshot(
                 Request::builder()
                     .method("POST")
-                    .uri("/api/demo/workspaces")
-                    .body(Body::empty())
+                    .uri("/api/lessons")
+                    .header("content-type", "application/json")
+                    .body(Body::from(r#"{"title":"Restart persistence probe","checkpoints":[{"title":"Open after restart","command":"npm test"}]}"#))
                     .unwrap(),
             )
             .await
             .unwrap();
-        assert_eq!(demo.status(), StatusCode::CREATED);
-        let demo: Value =
-            serde_json::from_slice(&to_bytes(demo.into_body(), 64 * 1024).await.unwrap()).unwrap();
-        let demo_id = demo["workspaceId"].as_str().unwrap();
-        assert_eq!(
-            second_replica
-                .clone()
-                .oneshot(
-                    Request::builder()
-                        .uri(format!("/api/demo/workspaces/{demo_id}"))
-                        .body(Body::empty())
-                        .unwrap(),
-                )
-                .await
-                .unwrap()
-                .status(),
-            StatusCode::OK,
-            "a demo remains usable after a replica change"
-        );
-        assert_eq!(
-            second_replica
-                .clone()
-                .oneshot(
-                    Request::builder()
-                        .method("DELETE")
-                        .uri(format!("/api/demo/workspaces/{demo_id}"))
-                        .body(Body::empty())
-                        .unwrap(),
-                )
-                .await
-                .unwrap()
-                .status(),
-            StatusCode::NO_CONTENT,
-            "demo reset is visible across replicas"
-        );
-
-        for round in 0..4 {
-            let (writer, other_replica) = if round % 2 == 0 {
-                (first_replica.clone(), second_replica.clone())
-            } else {
-                (second_replica.clone(), first_replica.clone())
-            };
-            let created = writer
-                .clone()
-                .oneshot(
-                    Request::builder()
-                        .method("POST")
-                        .uri("/api/lessons")
-                        .header("content-type", "application/json")
-                        .body(Body::from(format!(
-                            r#"{{"title":"Replica probe {round}","checkpoints":[{{"title":"Read from another replica","command":"npm test"}}]}}"#
-                        )))
-                        .unwrap(),
-                )
-                .await
+        assert_eq!(created.status(), StatusCode::CREATED);
+        let created: Value =
+            serde_json::from_slice(&to_bytes(created.into_body(), 64 * 1024).await.unwrap())
                 .unwrap();
-            assert_eq!(created.status(), StatusCode::CREATED);
-            let created: Value =
-                serde_json::from_slice(&to_bytes(created.into_body(), 64 * 1024).await.unwrap())
-                    .unwrap();
-            let id = created["id"].as_str().unwrap();
-            let code = created["shareCode"].as_str().unwrap();
-            let token = created["tutorToken"].as_str().unwrap();
+        let id = created["id"].as_str().unwrap();
+        let code = created["shareCode"].as_str().unwrap();
+        let token = created["tutorToken"].as_str().unwrap();
 
-            let read = other_replica
+        first_pool.close().await;
+
+        let reopened_pool = durable_test_database(&state_file).await;
+        let replacement = app(
+            app_state(reopened_pool.clone(), "replacement".into()),
+            PathBuf::from("dist"),
+        );
+        assert_eq!(
+            replacement
                 .clone()
                 .oneshot(
                     Request::builder()
                         .uri(format!("/api/lessons/code/{code}"))
                         .body(Body::empty())
-                        .unwrap(),
+                        .unwrap()
                 )
                 .await
-                .unwrap();
-            assert_eq!(
-                read.status(),
-                StatusCode::OK,
-                "round {round} cross-replica read"
-            );
-
-            let deleted = other_replica
+                .unwrap()
+                .status(),
+            StatusCode::OK,
+            "a lesson remains readable after reopening its durable state file"
+        );
+        assert_eq!(
+            replacement
                 .oneshot(
                     Request::builder()
                         .method("DELETE")
@@ -1333,34 +1220,16 @@ mod tests {
                         .unwrap(),
                 )
                 .await
-                .unwrap();
-            assert_eq!(
-                deleted.status(),
-                StatusCode::NO_CONTENT,
-                "round {round} cross-replica authorized deletion"
-            );
-
-            let missing = writer
-                .oneshot(
-                    Request::builder()
-                        .uri(format!("/api/lessons/code/{code}"))
-                        .body(Body::empty())
-                        .unwrap(),
-                )
-                .await
-                .unwrap();
-            assert_eq!(
-                missing.status(),
-                StatusCode::NOT_FOUND,
-                "round {round} deletion is visible to the original replica"
-            );
-        }
-
-        drop(first_replica);
-        drop(second_replica);
-        first_pool.close().await;
-        second_pool.close().await;
-        let _ = std::fs::remove_file(database_file);
+                .unwrap()
+                .status(),
+            StatusCode::NO_CONTENT,
+            "authorized deletion remains available after reopening state"
+        );
+        reopened_pool.close().await;
+        let _ = std::fs::remove_file(&state_file);
+        let _ = std::fs::remove_file(state_file.with_extension("db-wal"));
+        let _ = std::fs::remove_file(state_file.with_extension("db-shm"));
+        let _ = std::fs::remove_dir(mount_dir);
     }
 
     #[tokio::test]

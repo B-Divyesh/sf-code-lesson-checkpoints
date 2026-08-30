@@ -14,7 +14,6 @@
     "test:pwa": "node tests/pwa-smoke.mjs",
     "test:load": "node tests/load-smoke.mjs",
     "test:coherence": "node tests/live-coherence.mjs",
-    "test:postgres-coherence": "node tests/postgres-replica-coherence.mjs",
     "test:package": "bash scripts/test-extension-package.sh",
     "preview": "vite preview",
     "check": "tsc --noEmit && tsc -p extension/tsconfig.json --noEmit",

@@ -155,12 +155,12 @@ try {
   await learner.keyboard.press('Space');
   await dialog.waitFor({ state: 'visible' });
   await dialog.getByLabel('Blocked').check();
-  await dialog.getByLabel(/Selected terminal output/).fill('DATABASE_URL=postgres://qa_user:qa_password@db.example/private\nExpected 200 but got 401');
+  await dialog.getByLabel(/Selected terminal output/).fill('SERVICE_TOKEN=browser-secret\nExpected 200 but got 401');
   await dialog.getByLabel(/What do you think/).fill('The request may be missing its header.');
   await dialog.getByLabel(/I reviewed this evidence/).check();
   await dialog.getByRole('button', { name: /Share this run/ }).click();
-  await learner.getByText('DATABASE_URL=[redacted]').waitFor();
-  assert.equal(await learner.getByText('qa_password').count(), 0);
+  await learner.getByText('SERVICE_TOKEN=[redacted]').waitFor();
+  assert.equal(await learner.getByText('browser-secret').count(), 0);
 
   await page.reload();
   await page.getByText('First block at checkpoint 1').waitFor();

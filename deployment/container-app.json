@@ -10,18 +10,15 @@
   "targetPort": 8080,
   "activeRevisionsMode": "Single",
   "scale": {
-    "minReplicas": 3,
-    "maxReplicas": 3
+    "minReplicas": 1,
+    "maxReplicas": 1
   },
-  "postgres": {
-    "keyVault": "sociobot-keyvault1",
-    "migrationKeyVaultSecret": "sociobot-db-migration-url",
-    "keyVaultSecret": "sociobot-db-runtime-url",
-    "containerSecret": "code-lesson-checkpoints-database-url",
-    "schema": "code_lesson_checkpoints"
+  "dataDir": "/data",
+  "storage": {
+    "volumeName": "lesson-data",
+    "storageName": "sf-code-lesson-checkpoints-data"
   },
   "coherenceProbe": {
-    "cycles": 4,
-    "minimumDistinctReplicas": 2
+    "cycles": 4
   }
 }

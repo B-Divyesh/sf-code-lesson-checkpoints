@@ -5,21 +5,14 @@ import { promisify } from 'node:util';
 const baseURL = (process.env.BASE_URL || 'http://127.0.0.1:8080').replace(/\/$/, '');
 const expectedBuild = process.env.EXPECTED_BUILD_SHA;
 const cycles = Number.parseInt(process.env.COHERENCE_CYCLES || '1', 10);
-const minimumDistinctReplicas = Number.parseInt(process.env.MINIMUM_DISTINCT_REPLICAS || '0', 10);
 const execFile = promisify(execFileCallback);
-const observedReplicas = new Set();
 let created;
 
 assert.ok(Number.isInteger(cycles) && cycles >= 1, 'COHERENCE_CYCLES must be at least one');
-assert.ok(
-  Number.isInteger(minimumDistinctReplicas) && minimumDistinctReplicas >= 0,
-  'MINIMUM_DISTINCT_REPLICAS must be zero or greater',
-);
 
 async function request(path, init = {}, attempt = 0) {
-  // Every request is a separate HTTP/1.1 curl process. The generated query,
-  // closed connection, and distinct forwarded client key prevent sticky
-  // browser state from hiding a replica-local persistence boundary.
+  // Every request is a separate HTTP/1.1 curl process. The generated query
+  // and closed connection reproduce the verifier's fresh-client lifecycle.
   const args = ['--silent', '--show-error', '--http1.1', '--no-keepalive', '--request', init.method ?? 'GET'];
   const clientIp = `198.51.100.${(attempt + Number.parseInt(crypto.randomUUID().slice(0, 2), 16)) % 250 + 1}`;
   args.push('--header', `X-Forwarded-For: ${clientIp}`);
@@ -27,22 +20,19 @@ async function request(path, init = {}, attempt = 0) {
   if (init.body !== undefined) args.push('--data-binary', init.body);
   args.push(
     '--write-out',
-    '\n%{http_code}\n%header{x-checkpoint-replica}\n',
+    '\n%{http_code}\n',
     `${baseURL}${path}${path.includes('?') ? '&' : '?'}fresh=${crypto.randomUUID()}`,
   );
   const { stdout } = await execFile('curl', args, { maxBuffer: 1024 * 1024 });
   const lines = stdout.split('\n');
   const finalMarker = lines.pop();
-  const replica = lines.pop();
   const status = lines.pop();
   assert.equal(finalMarker, '', 'curl response includes a final marker');
   const response = {
     status: Number(status),
-    replica: replica?.trim() ?? '',
     body: lines.join('\n'),
   };
   assert.ok(Number.isInteger(response.status), 'curl response includes an HTTP status marker');
-  if (response.replica) observedReplicas.add(response.replica);
   if (response.status === 429 && attempt < 3) {
     // This suite verifies shared storage, not limiter capacity. Retry through
     // another fresh connection while respecting the product's HTTP policy.
@@ -86,7 +76,7 @@ async function runLifecycle(cycle) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       status: 'blocked',
-      output: 'DATABASE_URL=postgres://qa_user:qa_password@db.example/private',
+      output: 'SERVICE_TOKEN=coherence-secret',
       note: 'Fresh connection evidence',
       consented: true,
     }),
@@ -96,7 +86,7 @@ async function runLifecycle(cycle) {
   const tutorReads = await repeat(30, () => request(`/api/tutor/lessons/${created.id}`, { headers: authorization }), 200, `cycle ${cycle} post-submit tutor reads`);
   const tutorLesson = JSON.parse(tutorReads[0].body);
   const submission = tutorLesson.checkpoints[0].submissions[0];
-  assert.equal(submission.output, 'DATABASE_URL=[redacted]');
+  assert.equal(submission.output, 'SERVICE_TOKEN=[redacted]');
 
   const reply = await request(`/api/tutor/submissions/${submission.id}/reply`, {
     method: 'PUT',
@@ -121,11 +111,7 @@ try {
   if (expectedBuild) assert.equal(health.body.build, expectedBuild, 'live build identity');
 
   for (let cycle = 1; cycle <= cycles; cycle += 1) await runLifecycle(cycle);
-  assert.ok(
-    observedReplicas.size >= minimumDistinctReplicas,
-    `expected at least ${minimumDistinctReplicas} responding replicas, observed ${observedReplicas.size}: ${[...observedReplicas].join(', ')}`,
-  );
-  console.log(`Live coherence passed: ${cycles} fresh-connection create/read/submit/reply/delete cycles across ${observedReplicas.size} responding replica process(es).`);
+  console.log(`Live coherence passed: ${cycles} fresh-connection create/read/submit/reply/delete cycles against the durable single-service boundary.`);
 } finally {
   if (created) {
     await request(`/api/tutor/lessons/${created.id}`, {

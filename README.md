@@ -8,7 +8,7 @@ Try the isolated sample at `https://code-lesson-checkpoints.sociobot.in/demo`. I
 
 ## What is included
 
-- Rust/Axum relay with shared PostgreSQL production state, SQLite local fallback, hashed private tutor tokens, short learner codes, validation, secure response headers, JSON logs, migrations, and graceful shutdown
+- Rust/Axum relay with one durable SQLite state file, hashed private tutor tokens, short learner codes, validation, secure response headers, JSON logs, migrations, and graceful shutdown
 - Vite/TypeScript responsive web app for planning, joining, submitting evidence, responding, and deleting records
 - VS Code extension source under `extension/`; it displays the exact tutor-defined command for learner confirmation, runs locally, redacts/caps output, and asks again before sharing
 - Local secret-pattern redaction plus a second server-side pass; 8,000-character output cap
@@ -28,16 +28,11 @@ cargo run
 
 Open `http://localhost:8080`. For frontend hot reload, run `cargo run` and `npm run dev` in separate terminals, then open `http://localhost:5173`.
 
-Configuration is environment-only:
+The container starts with only `PORT`; its state file is `/data/checkpoints.db` when the durable mount exists, otherwise `checkpoints.db` for local development.
 
 | Variable | Default | Purpose |
 | --- | --- | --- |
 | `PORT` | `8080` | HTTP listener |
-| `DATABASE_URL` | `sqlite://checkpoints.db?mode=rwc` | SQLite local database or PostgreSQL runtime URL |
-| `DIST_DIR` | `dist` | Built frontend directory |
-| `CORS_ORIGIN` | production origin + localhost | Comma-separated browser origins |
-| `BUILD_SHA` | `development` | Returned by `/health` |
-| `RUST_LOG` | package default | Structured log filter |
 
 ## Test and verify
 
@@ -48,6 +43,9 @@ npm run check        # strict TypeScript checks, including the extension
 npm run lint         # TypeScript, Rust formatting, and Clippy
 npm run build
 npm run test:package # package and inspect the VS Code extension consumer
+npm run test:e2e     # desktop/mobile browser, keyboard, accessibility, privacy
+npm run test:pwa     # update and offline-demo behavior
+npm run test:coherence # fresh-connection lifecycle
 docker build -t code-lesson-checkpoints .
 docker run --rm -p 8080:8080 code-lesson-checkpoints
 ```
@@ -66,9 +64,9 @@ The generated hero illustration is original project artwork; prompt and provenan
 
 ## Deployment
 
-The multi-stage Dockerfile compiles both frontend and Rust service, runs as a non-root user on port 8080, and starts with SQLite when no database configuration is supplied. Production uses the factory PostgreSQL runtime secret in a product-owned `code_lesson_checkpoints` schema. [`deployment/container-app.json`](deployment/container-app.json) deliberately runs three replicas with no local data volume; all lesson state, tutor authorization hashes, deletion, and demo workspaces are shared through PostgreSQL. API reads are capped per client, and writes use a stricter per-client allowance. Rate-limit responses include `Retry-After`.
+The multi-stage Dockerfile compiles both frontend and Rust service, runs as a non-root user on port 8080, and creates a writable `/data` directory. [`deployment/container-app.json`](deployment/container-app.json) mounts the product-owned `sf-code-lesson-checkpoints-data` share at `/data` and pins the service to one replica. Lesson records, tutor authorization hashes, deletion, and demo workspaces persist in `/data/checkpoints.db`. API reads are capped per client, and writes use a stricter per-client allowance. Rate-limit responses include `Retry-After`.
 
-The only release command is `scripts/deploy-release.sh <full-commit-sha>`. It builds the immutable image, runs the privileged PostgreSQL migration step, proves four real cross-process create/read/delete cycles with the runtime role, applies and reads back the three-replica secret-reference topology, restarts the revision with a persistence canary, and runs repeated fresh-connection coherence checks. `BASE_URL=https://code-lesson-checkpoints.sociobot.in EXPECTED_BUILD_SHA=<commit> COHERENCE_CYCLES=4 MINIMUM_DISTINCT_REPLICAS=2 npm run test:coherence` repeats the public probe. DNS, database provisioning, and billing registration remain factory-managed outside this repository.
+The only release command is `scripts/deploy-release.sh <full-commit-sha>`. It builds the immutable image, applies and reads back the one-replica `/data` mount, writes a canary, restarts the revision, verifies the canary after restart, and runs repeated fresh-connection lifecycle checks. `BASE_URL=https://code-lesson-checkpoints.sociobot.in EXPECTED_BUILD_SHA=<commit> COHERENCE_CYCLES=4 npm run test:coherence` repeats the public probe. DNS, durable-share provisioning, and billing registration remain factory-managed outside this repository.
 
 ## License
 

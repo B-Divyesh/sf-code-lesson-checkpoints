@@ -38,15 +38,6 @@ az acr build \
   --build-arg "SOURCE_COMMIT=$source_sha" \
   "$repo_dir"
 
-"$repo_dir/scripts/migrate-postgres.sh"
-
-runtime_database_url=$(az keyvault secret show \
-  --vault-name "$(jq -r '.postgres.keyVault' "$contract")" \
-  --name "$(jq -r '.postgres.keyVaultSecret' "$contract")" \
-  --query value --output tsv)
-POSTGRES_RUNTIME_URL="$runtime_database_url" npm --prefix "$repo_dir" run test:postgres-coherence
-unset runtime_database_url
-
 canary=''
 cleanup_canary() {
   if [[ -n "$canary" ]]; then
@@ -59,9 +50,6 @@ cleanup_canary() {
 }
 trap cleanup_canary EXIT
 
-# Apply the image, shared database secret, and three-replica topology in one
-# revision. Updating the image first would briefly start it against the old
-# per-replica SQLite boundary, recreating the exact data-loss failure.
 "$repo_dir/scripts/apply-deployment-contract.sh" "$image"
 
 for attempt in $(seq 1 60); do
@@ -76,13 +64,13 @@ for attempt in $(seq 1 60); do
   sleep 5
 done
 
-# Persist a record before restarting every serving process. Reading and
-# deleting it afterwards proves that a revision restart does not create a
-# private replica-local state boundary.
+# Write first, then restart the one serving revision. A successful read after
+# the new process is ready proves that the SQLite file came from /data rather
+# than an instance-local filesystem.
 canary=$(curl --fail-with-body --silent --show-error \
   --request POST \
   --header 'Content-Type: application/json' \
-  --data '{"title":"Revision persistence canary","checkpoints":[{"title":"Keep the record","command":"npm test","successHint":"Every restarted replica can read this lesson"}]}' \
+  --data '{"title":"Revision persistence canary","checkpoints":[{"title":"Keep the record","command":"npm test","successHint":"The restarted service opens this lesson"}]}' \
   "$base_url/api/lessons")
 revision=$(az containerapp show \
   --resource-group "$resource_group" \
@@ -123,6 +111,5 @@ done
 BASE_URL="$base_url" \
   EXPECTED_BUILD_SHA="$source_sha" \
   COHERENCE_CYCLES="$(jq -r '.coherenceProbe.cycles' "$contract")" \
-  MINIMUM_DISTINCT_REPLICAS="$(jq -r '.coherenceProbe.minimumDistinctReplicas' "$contract")" \
   npm --prefix "$repo_dir" run test:coherence
-echo "Release $source_sha is live with shared PostgreSQL lesson state across replicas."
+echo "Release $source_sha is live with durable SQLite state under /data."

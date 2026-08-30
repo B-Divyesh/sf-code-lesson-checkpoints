@@ -16,7 +16,7 @@ RUN apt-get update \
 COPY Cargo.toml Cargo.lock ./
 COPY migrations ./migrations
 COPY src ./src
-RUN cargo build --release
+RUN BUILD_SHA="$BUILD_SHA" cargo build --release
 
 FROM debian:bookworm-slim AS runtime
 ARG BUILD_SHA=dev
@@ -25,12 +25,11 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/* \
     && groupadd --system app \
     && useradd --system --gid app --home-dir /app app \
-    && mkdir -p /app/dist \
-    && chown -R app:app /app
+    && mkdir -p /app/dist /data \
+    && chown -R app:app /app /data
 WORKDIR /app
 COPY --from=backend /build/target/release/code-lesson-checkpoints /usr/local/bin/code-lesson-checkpoints
 COPY --from=web /build/dist ./dist
-ENV PORT=8080 DIST_DIR=/app/dist BUILD_SHA=${BUILD_SHA}
 USER app
 EXPOSE 8080
 CMD ["code-lesson-checkpoints"]

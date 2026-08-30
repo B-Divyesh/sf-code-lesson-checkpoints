@@ -9,11 +9,10 @@ describe('privacy helpers', () => {
     expect(result.redactions).toBe(2);
   });
 
-  it('redacts broad environment connection variables and URL credentials', () => {
-    const result = redactOutput('DATABASE_URL=postgres://qa_user:qa_password@db.example/private\nconnect redis://cache_user:cache_password@cache.example/0');
-    expect(result.text).toBe('DATABASE_URL=[redacted]\nconnect redis://[redacted]@cache.example/0');
-    expect(result.text).not.toContain('qa_user');
-    expect(result.text).not.toContain('qa_password');
+  it('redacts environment secrets and URL credentials', () => {
+    const result = redactOutput('SERVICE_TOKEN=lesson-secret\nconnect redis://cache_user:cache_password@cache.example/0');
+    expect(result.text).toBe('SERVICE_TOKEN=[redacted]\nconnect redis://[redacted]@cache.example/0');
+    expect(result.text).not.toContain('lesson-secret');
     expect(result.text).not.toContain('cache_password');
     expect(result.redactions).toBe(2);
   });
