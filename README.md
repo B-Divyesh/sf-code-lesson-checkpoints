@@ -28,7 +28,7 @@ cargo run
 
 Open `http://localhost:8080`. For frontend hot reload, run `cargo run` and `npm run dev` in separate terminals, then open `http://localhost:5173`.
 
-The container starts with only `PORT`; its state file is `/data/checkpoints.db` when the durable mount exists, otherwise `checkpoints.db` for local development.
+The container starts with only `PORT`; its state file is `/data/checkpoints.db` when the durable mount exists, otherwise `checkpoints.db` for local development. `/health` reports the compiled build SHA and `database: "sqlite"`.
 
 | Variable | Default | Purpose |
 | --- | --- | --- |

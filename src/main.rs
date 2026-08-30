@@ -428,7 +428,7 @@ fn rate_limit_error(error: GovernorError) -> Response {
 }
 
 async fn health(State(state): State<AppState>) -> Json<Value> {
-    Json(json!({ "status": "ok", "build": state.build_sha }))
+    Json(json!({ "status": "ok", "build": state.build_sha, "database": "sqlite" }))
 }
 
 async fn create_demo_workspace(State(state): State<AppState>) -> (StatusCode, Json<Value>) {
@@ -1044,6 +1044,10 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(health.status(), StatusCode::OK);
+        let health: Value =
+            serde_json::from_slice(&to_bytes(health.into_body(), 64 * 1024).await.unwrap())
+                .unwrap();
+        assert_eq!(health["database"], "sqlite");
     }
 
     #[tokio::test]

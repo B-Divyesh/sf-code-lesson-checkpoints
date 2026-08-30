@@ -108,6 +108,7 @@ async function runLifecycle(cycle) {
 try {
   const health = await json(await request('/health'));
   assert.equal(health.response.status, 200);
+  assert.equal(health.body.database, 'sqlite', 'live database identity');
   if (expectedBuild) assert.equal(health.body.build, expectedBuild, 'live build identity');
 
   for (let cycle = 1; cycle <= cycles; cycle += 1) await runLifecycle(cycle);
