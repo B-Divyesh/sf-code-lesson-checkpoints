@@ -51,6 +51,26 @@ az rest \
   --output none
 wait "$secret_writer"
 
+# Container Apps may serialize a secret update as a short provisioning
+# operation. Do not race its template patch or the control plane rejects the
+# second update with ContainerAppOperationInProgress.
+for attempt in $(seq 1 30); do
+  secret_state=$(az containerapp show \
+    --resource-group "$resource_group" \
+    --name "$app_name" \
+    --query properties.provisioningState --output tsv)
+  if [[ "$secret_state" == "Succeeded" ]]; then
+    break
+  fi
+  if [[ "$attempt" == 30 ]]; then
+    echo "Container Apps did not finish the PostgreSQL secret update." >&2
+    exit 1
+  fi
+  sleep 2
+done
+
+app_json=$(az containerapp show --resource-group "$resource_group" --name "$app_name" --output json)
+
 patch=$(jq \
   --arg containerSecret "$container_secret" \
   --arg revisionMode "$revision_mode" \
