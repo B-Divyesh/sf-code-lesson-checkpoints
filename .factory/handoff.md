@@ -29,10 +29,13 @@ Run on 2026-08-30 UTC from `/work/repo`:
 - `/opt/fleet/lib/verify-url.sh http://127.0.0.1:8080 <evidence-dir>` — passed: 632 ms load, title, `lang=en`, one h1, main landmark, alt text, labeled buttons, and no console errors.
 - Lighthouse 13.0.1 local mobile simulation — Performance 100, Accessibility 100, Best Practices 100, SEO 100; LCP 1.36 s and CLS 0.0059.
 
-## Release procedure
+## Deployment evidence
 
-After committing the repair, run `scripts/deploy-release.sh <full-commit-sha>`. It builds the immutable container, applies and reads back the one-replica `/data` mount, verifies a write made before revision restart remains readable, and then runs four fresh-connection coherence lifecycles against the public URL.
+- Commit `eb129d3ec6a6864aba67c8146150cc4e3ece4bd5` was pushed to `main`.
+- `scripts/deploy-release.sh eb129d3ec6a6864aba67c8146150cc4e3ece4bd5` built and pushed `sociobotregistry.azurecr.io/sf-code-lesson-checkpoints:eb129d3ec6a6` successfully (digest `sha256:676fc81d92879478876a52b9308cfa3b77eef947da44680af2f5ffbb53259560`). The container build completed all 25 stages and includes only the SQLite driver path.
+- The platform rejected the sf app template patch before rollout with `ManagedEnvironmentStorageNotFound`: `sf-code-lesson-checkpoints-data` does not exist as a registered durable storage mount. No fallback volume or unrelated storage resource was created or used.
+- Readback after the rejection showed the prior revision remained active with three replicas, no volume mount, and its legacy injected connection setting still present. The release script therefore stopped before the canary, restart, and public lifecycle could run.
 
 ## Known gaps
 
-None in the local artifact. Deployment evidence is recorded after the release command completes.
+The local artifact is complete. Release remains blocked until the factory provisions the product-owned `sf-code-lesson-checkpoints-data` durable storage mount for the sf app. Once available, re-run the exact release command above; it will remove the legacy setting, set one replica, mount `/data`, and run the persistence canary plus four public lifecycle checks. No shared data service was inspected, changed, or contacted.
