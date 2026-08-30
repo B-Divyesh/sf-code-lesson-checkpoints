@@ -1,5 +1,5 @@
-const CACHE = 'clc-shell-v2';
-const SHELL = ['/', '/join', '/new', '/pricing', '/team', '/privacy', '/terms'];
+const CACHE = 'clc-shell-v3';
+const SHELL = ['/', '/demo', '/join', '/new', '/pricing', '/team', '/privacy', '/terms'];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(caches.open(CACHE).then((cache) => cache.addAll(SHELL)));

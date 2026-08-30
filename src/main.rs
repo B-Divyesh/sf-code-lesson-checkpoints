@@ -1,15 +1,17 @@
 use std::{
+    collections::HashMap,
     env,
     net::{IpAddr, SocketAddr},
     path::PathBuf,
-    time::Duration,
+    sync::Arc,
+    time::{Duration, SystemTime},
 };
 
 use axum::{
     extract::{ConnectInfo, DefaultBodyLimit, Path, State},
     http::{header, HeaderMap, HeaderValue, Method, StatusCode},
     response::{IntoResponse, Response},
-    routing::{get, post, put},
+    routing::{get, get_service, post, put},
     Json, Router,
 };
 use rand::{distr::Alphanumeric, Rng};
@@ -33,10 +35,19 @@ use tower_http::{
 use tracing::{info, warn};
 use uuid::Uuid;
 
+const DEMO_TTL: Duration = Duration::from_secs(24 * 60 * 60);
+
 #[derive(Clone)]
 struct AppState {
     db: SqlitePool,
     build_sha: String,
+    demos: Arc<tokio::sync::Mutex<HashMap<String, DemoWorkspace>>>,
+}
+
+#[derive(Clone)]
+struct DemoWorkspace {
+    expires_at: SystemTime,
+    lesson: Value,
 }
 
 /// The factory ingress writes the originating client as the first
@@ -217,7 +228,7 @@ async fn main() -> anyhow::Result<()> {
         .connect_with(sqlite_options)
         .await?;
     run_migrations(&db).await?;
-    let state = AppState { db, build_sha };
+    let state = app_state(db, build_sha);
     let app = app(state, dist);
     let port = env::var("PORT")
         .ok()
@@ -233,6 +244,14 @@ async fn main() -> anyhow::Result<()> {
     .with_graceful_shutdown(shutdown())
     .await?;
     Ok(())
+}
+
+fn app_state(db: SqlitePool, build_sha: String) -> AppState {
+    AppState {
+        db,
+        build_sha,
+        demos: Arc::new(tokio::sync::Mutex::new(HashMap::new())),
+    }
 }
 
 async fn run_migrations(db: &SqlitePool) -> anyhow::Result<()> {
@@ -273,7 +292,10 @@ fn app(state: AppState, dist: PathBuf) -> Router {
         .allow_methods([Method::GET, Method::POST, Method::PUT, Method::DELETE])
         .allow_headers([header::AUTHORIZATION, header::CONTENT_TYPE]);
     let index = dist.join("index.html");
-    let static_files = ServeDir::new(&dist).fallback(ServeFile::new(index));
+    // Known client routes deliberately return the application shell with 200.
+    // ServeDir's not-found service keeps that same designed shell for unknown
+    // paths while preserving the HTTP 404 status for crawlers and caches.
+    let static_files = ServeDir::new(&dist).not_found_service(ServeFile::new(index.clone()));
     let immutable_assets = Router::new()
         .fallback_service(ServeDir::new(dist.join("assets")))
         .layer(SetResponseHeaderLayer::overriding(
@@ -296,6 +318,12 @@ fn app(state: AppState, dist: PathBuf) -> Router {
         .finish()
         .expect("valid mutation rate limit");
     let api = Router::new()
+        .route("/demo/workspaces", post(create_demo_workspace))
+        .route(
+            "/demo/workspaces/{id}",
+            get(get_demo_workspace).delete(delete_demo_workspace),
+        )
+        .route("/demo/workspaces/{id}/redact", post(redact_demo_output))
         .route("/lessons", post(create_lesson))
         .route("/lessons/code/{code}", get(get_learner_lesson))
         .route(
@@ -315,6 +343,19 @@ fn app(state: AppState, dist: PathBuf) -> Router {
         .route("/health", get(health))
         .nest("/api", api)
         .nest("/assets", immutable_assets)
+        .route_service("/", get_service(ServeFile::new(index.clone())))
+        .route_service("/demo", get_service(ServeFile::new(index.clone())))
+        .route_service("/join", get_service(ServeFile::new(index.clone())))
+        .route_service("/new", get_service(ServeFile::new(index.clone())))
+        .route_service("/pricing", get_service(ServeFile::new(index.clone())))
+        .route_service("/team", get_service(ServeFile::new(index.clone())))
+        .route_service("/privacy", get_service(ServeFile::new(index.clone())))
+        .route_service("/terms", get_service(ServeFile::new(index.clone())))
+        .route_service(
+            "/lesson/{id}",
+            get_service(ServeFile::new(index.clone())),
+        )
+        .route_service("/join/{code}", get_service(ServeFile::new(index)))
         .fallback_service(static_files)
         .layer(CompressionLayer::new())
         .layer(cors)
@@ -350,6 +391,136 @@ fn rate_limit_error(error: GovernorError) -> Response {
 
 async fn health(State(state): State<AppState>) -> Json<Value> {
     Json(json!({ "status": "ok", "build": state.build_sha }))
+}
+
+async fn create_demo_workspace(State(state): State<AppState>) -> (StatusCode, Json<Value>) {
+    let id = Uuid::new_v4().to_string();
+    let expires_at = SystemTime::now() + DEMO_TTL;
+    let workspace = DemoWorkspace {
+        expires_at,
+        lesson: sample_demo_lesson(),
+    };
+    let mut demos = state.demos.lock().await;
+    demos.retain(|_, demo| demo.expires_at > SystemTime::now());
+    demos.insert(id.clone(), workspace.clone());
+    (
+        StatusCode::CREATED,
+        Json(demo_workspace_response(&id, &workspace)),
+    )
+}
+
+async fn get_demo_workspace(
+    State(state): State<AppState>,
+    Path(id): Path<String>,
+) -> ApiResult<Json<Value>> {
+    let mut demos = state.demos.lock().await;
+    demos.retain(|_, demo| demo.expires_at > SystemTime::now());
+    let workspace = demos.get(&id).ok_or_else(|| {
+        ApiError(
+            StatusCode::NOT_FOUND,
+            "That sample workspace expired. Reset the demo to load a fresh copy.".into(),
+        )
+    })?;
+    Ok(Json(demo_workspace_response(&id, workspace)))
+}
+
+async fn delete_demo_workspace(
+    State(state): State<AppState>,
+    Path(id): Path<String>,
+) -> StatusCode {
+    state.demos.lock().await.remove(&id);
+    StatusCode::NO_CONTENT
+}
+
+#[derive(Deserialize)]
+struct DemoRedaction {
+    output: String,
+}
+
+async fn redact_demo_output(
+    State(state): State<AppState>,
+    Path(id): Path<String>,
+    Json(body): Json<DemoRedaction>,
+) -> ApiResult<Json<Value>> {
+    let mut demos = state.demos.lock().await;
+    demos.retain(|_, demo| demo.expires_at > SystemTime::now());
+    if !demos.contains_key(&id) {
+        return Err(ApiError(
+            StatusCode::NOT_FOUND,
+            "That sample workspace expired. Reset the demo to load a fresh copy.".into(),
+        ));
+    }
+    let output = redact_and_cap(&body.output, 8000);
+    Ok(Json(json!({
+        "output": output,
+        "characters": output.chars().count(),
+        "persisted": false
+    })))
+}
+
+fn demo_workspace_response(id: &str, workspace: &DemoWorkspace) -> Value {
+    let expires_at = workspace
+        .expires_at
+        .duration_since(SystemTime::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs();
+    json!({
+        "workspaceId": id,
+        "expiresAt": expires_at,
+        "lesson": workspace.lesson
+    })
+}
+
+fn sample_demo_lesson() -> Value {
+    json!({
+        "id": "demo-lesson",
+        "title": "Debugging the weather API",
+        "learnerName": "Sam",
+        "shareCode": "SAMPLE",
+        "createdAt": "2026-08-30T09:00:00Z",
+        "checkpoints": [
+            {
+                "id": "demo-install",
+                "position": 1,
+                "title": "Install and run the starter tests",
+                "command": "npm test",
+                "successHint": "The test runner starts and reports one API failure",
+                "submissions": [{
+                    "id": "demo-submission-install",
+                    "status": "passed",
+                    "output": "18 tests passed; 1 integration test failed as expected",
+                    "note": "The local suite runs. I can reproduce the failing request.",
+                    "teacherReply": "Good. Keep the failing test open while you inspect the request.",
+                    "createdAt": "2026-08-30T09:12:00Z",
+                    "repliedAt": "2026-08-30T09:15:00Z"
+                }]
+            },
+            {
+                "id": "demo-request",
+                "position": 2,
+                "title": "Reproduce the unauthorized request",
+                "command": "npm test -- weather-client",
+                "successHint": "The request test explains why the API returns 401",
+                "submissions": [{
+                    "id": "demo-submission-request",
+                    "status": "blocked",
+                    "output": "Authorization: [redacted]\nExpected: 200\nReceived: 401\nweather-client.test.ts:42",
+                    "note": "The token exists, but I think the header is added after fetch starts.",
+                    "teacherReply": "Inspect where the headers object is created, then trace the value passed into fetch.",
+                    "createdAt": "2026-08-30T09:28:00Z",
+                    "repliedAt": "2026-08-30T09:34:00Z"
+                }]
+            },
+            {
+                "id": "demo-fix",
+                "position": 3,
+                "title": "Verify the fix",
+                "command": "npm test",
+                "successHint": "All 19 tests pass",
+                "submissions": []
+            }
+        ]
+    })
 }
 
 async fn create_lesson(
@@ -674,13 +845,7 @@ mod tests {
             .await
             .unwrap();
         sqlx::migrate!().run(&db).await.unwrap();
-        app(
-            AppState {
-                db,
-                build_sha: "test".into(),
-            },
-            PathBuf::from("dist"),
-        )
+        app(app_state(db, "test".into()), PathBuf::from("dist"))
     }
 
     #[test]
@@ -820,13 +985,7 @@ mod tests {
             .await
             .unwrap();
         sqlx::migrate!().run(&db).await.unwrap();
-        let service = app(
-            AppState {
-                db,
-                build_sha: "test".into(),
-            },
-            PathBuf::from("dist"),
-        );
+        let service = app(app_state(db, "test".into()), PathBuf::from("dist"));
         let create = Request::builder().method("POST").uri("/api/lessons").header("content-type", "application/json")
             .body(Body::from(r#"{"title":"HTTP debugging","checkpoints":[{"title":"Run tests","command":"npm test","successHint":"Tests pass"}]}"#)).unwrap();
         let response = service.clone().oneshot(create).await.unwrap();
@@ -906,20 +1065,142 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn demo_workspace_is_ephemeral_isolated_and_removable() {
+        let db = SqlitePoolOptions::new()
+            .max_connections(1)
+            .connect("sqlite::memory:")
+            .await
+            .unwrap();
+        sqlx::migrate!().run(&db).await.unwrap();
+        let service = app(app_state(db.clone(), "test".into()), PathBuf::from("dist"));
+
+        let created = service
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/api/demo/workspaces")
+                    .header("content-type", "application/json")
+                    .body(Body::from("{}"))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(created.status(), StatusCode::CREATED);
+        let created: Value =
+            serde_json::from_slice(&to_bytes(created.into_body(), 128 * 1024).await.unwrap())
+                .unwrap();
+        assert_eq!(created["lesson"]["title"], "Debugging the weather API");
+        assert_eq!(
+            created["lesson"]["checkpoints"].as_array().unwrap().len(),
+            3
+        );
+        let workspace_id = created["workspaceId"].as_str().unwrap();
+
+        let persisted_lessons = sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM lessons")
+            .fetch_one(&db)
+            .await
+            .unwrap();
+        assert_eq!(persisted_lessons, 0, "demo data must not enter SQLite");
+
+        let secret = format!("API_KEY={}\n{}", "supersecret", "x".repeat(8_100));
+        let redacted = service
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri(format!("/api/demo/workspaces/{workspace_id}/redact"))
+                    .header("content-type", "application/json")
+                    .body(Body::from(json!({ "output": secret }).to_string()))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(redacted.status(), StatusCode::OK);
+        let redacted: Value =
+            serde_json::from_slice(&to_bytes(redacted.into_body(), 128 * 1024).await.unwrap())
+                .unwrap();
+        let output = redacted["output"].as_str().unwrap();
+        assert!(!output.contains("supersecret"));
+        assert!(output.contains("[redacted]"));
+        assert!(output.ends_with("… [output trimmed]"));
+        assert_eq!(redacted["persisted"], false);
+
+        let removed = service
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("DELETE")
+                    .uri(format!("/api/demo/workspaces/{workspace_id}"))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(removed.status(), StatusCode::NO_CONTENT);
+        let missing = service
+            .oneshot(
+                Request::builder()
+                    .uri(format!("/api/demo/workspaces/{workspace_id}"))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(missing.status(), StatusCode::NOT_FOUND);
+    }
+
+    #[tokio::test]
+    async fn known_client_routes_are_200_and_unknown_routes_are_real_404s() {
+        let fixture = std::env::temp_dir().join(format!("clc-routes-{}", Uuid::new_v4()));
+        std::fs::create_dir_all(&fixture).unwrap();
+        std::fs::write(fixture.join("index.html"), "<main>application shell</main>").unwrap();
+        let db = SqlitePoolOptions::new()
+            .max_connections(1)
+            .connect("sqlite::memory:")
+            .await
+            .unwrap();
+        let service = app(app_state(db, "test".into()), fixture.clone());
+
+        for path in ["/", "/demo", "/new", "/join/ABC123", "/lesson/example"] {
+            let response = service
+                .clone()
+                .oneshot(Request::builder().uri(path).body(Body::empty()).unwrap())
+                .await
+                .unwrap();
+            assert_eq!(response.status(), StatusCode::OK, "{path}");
+        }
+
+        let response = service
+            .oneshot(
+                Request::builder()
+                    .uri("/missing-page")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::NOT_FOUND);
+        let body = to_bytes(response.into_body(), 64 * 1024).await.unwrap();
+        assert!(String::from_utf8_lossy(&body).contains("application shell"));
+        std::fs::remove_dir_all(fixture).unwrap();
+    }
+
+    #[tokio::test]
     async fn hashed_assets_receive_an_immutable_cache_policy() {
         let fixture = std::env::temp_dir().join(format!("clc-assets-{}", Uuid::new_v4()));
         let assets = fixture.join("assets");
         std::fs::create_dir_all(&assets).unwrap();
         std::fs::write(assets.join("index-ABC123.js"), "console.log('fixture')").unwrap();
         let service = app(
-            AppState {
-                db: SqlitePoolOptions::new()
+            app_state(
+                SqlitePoolOptions::new()
                     .max_connections(1)
                     .connect("sqlite::memory:")
                     .await
                     .unwrap(),
-                build_sha: "test".into(),
-            },
+                "test".into(),
+            ),
             fixture.clone(),
         );
         let response = service

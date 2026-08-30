@@ -18,11 +18,14 @@ try {
   });
   assert.match(activeScript ?? '', /\/sw\.js$/, 'active service worker serves the shell');
 
+  await page.goto(`${baseURL}/demo`, { waitUntil: 'networkidle' });
+  await page.getByRole('heading', { name: 'Find the first blocked checkpoint.' }).waitFor();
   await context.setOffline(true);
   await page.reload({ waitUntil: 'domcontentloaded' });
-  await page.getByText('See where the lesson got').waitFor();
+  await page.getByRole('heading', { name: 'Find the first blocked checkpoint.' }).waitFor();
+  await page.getByText('Demo — sample data, nothing is saved').waitFor();
   assert.equal(await page.locator('#offline').isVisible(), true, 'offline shell states that updates cannot be shared');
-  console.log('PWA smoke passed: service worker update resolves and cached shell reloads offline with notice.');
+  console.log('PWA smoke passed: service worker update resolves and the sample demo reloads offline with notice.');
 } finally {
   await context.setOffline(false);
   await browser.close();

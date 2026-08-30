@@ -14,7 +14,12 @@ function observe(target) {
   observedPages.add(target);
   target.on('console', (message) => { if (message.type() === 'error') consoleErrors.push(message.text()); });
   target.on('pageerror', (error) => consoleErrors.push(error.message));
-  target.on('response', (response) => { if (response.status() >= 400) consoleErrors.push(`${response.status()} ${response.url()}`); });
+  target.on('response', (response) => {
+    const pathname = new URL(response.url()).pathname;
+    if (response.status() >= 400 && !(response.status() === 404 && pathname === '/missing-page')) {
+      consoleErrors.push(`${response.status()} ${response.url()}`);
+    }
+  });
   target.on('request', (request) => {
     const origin = new URL(request.url()).origin;
     if (origin !== new URL(baseURL).origin) unexpectedOrigins.push(origin);
@@ -53,6 +58,7 @@ try {
   assert.equal((await page.locator('body').evaluate((body) => body.scrollWidth <= innerWidth)), true, 'home page overflows at 390px');
   await assertTouchTargets(page, [
     { selector: 'header .brand', name: 'header home link' },
+    { selector: '.hero-actions a[href="/demo"]', name: 'sample-data action' },
     { selector: '.hero-actions .text-link', name: 'lesson-code link' },
   ], 'mobile home');
   await page.keyboard.press('Tab');
@@ -64,8 +70,40 @@ try {
   assert.deepEqual(footerTargets, [true, true, true], 'footer links meet the 44 px touch target');
   await assertAccessible(page, 'home page');
 
-  for (const route of ['/join', '/pricing', '/team', '/privacy', '/terms', '/missing-page']) {
-    await page.goto(`${baseURL}${route}`);
+  await page.evaluate(() => localStorage.setItem('clc:archive', JSON.stringify([{ id: 'real-record' }])));
+  await page.getByRole('link', { name: /Try it with sample data/ }).click();
+  await page.waitForURL(`${baseURL}/demo`);
+  await page.getByRole('heading', { name: 'Find the first blocked checkpoint.' }).waitFor();
+  await page.getByText('Demo — sample data, nothing is saved').waitFor();
+  await page.getByText('First block at checkpoint 2').waitFor();
+  assert.equal(await page.getByText('qa_password').count(), 0, 'sample evidence contains no raw secret');
+  assert.deepEqual(await page.evaluate(() => JSON.parse(localStorage.getItem('clc:archive') ?? 'null')), [{ id: 'real-record' }], 'demo leaves real archive storage untouched');
+  const demoKeys = await page.evaluate(() => Object.keys(localStorage).filter((key) => key.startsWith('demo:')));
+  assert.deepEqual(demoKeys, ['demo:clc:workspace'], 'demo uses only its namespaced storage key');
+  const firstWorkspace = await page.evaluate(() => JSON.parse(localStorage.getItem('demo:clc:workspace') ?? '{}').workspaceId);
+  await page.getByLabel('Sample terminal output').fill(`API_KEY=browser-secret\n${'x'.repeat(8_100)}`);
+  await page.getByText('1 possible secret hidden. Output trimmed to 8,000 characters.').waitFor();
+  assert.equal(await page.locator('#demo-redacted').textContent().then((value) => value?.includes('browser-secret')), false, 'browser preview hides the secret');
+  const downloadPromise = page.waitForEvent('download');
+  await page.getByRole('button', { name: 'Export sample record' }).click();
+  const download = await downloadPromise;
+  assert.equal(download.suggestedFilename(), 'sample-code-lesson-checkpoints.json');
+  await page.getByRole('button', { name: 'Reset demo' }).click();
+  await page.waitForFunction((previousId) => {
+    const current = JSON.parse(localStorage.getItem('demo:clc:workspace') ?? '{}');
+    return current.workspaceId && current.workspaceId !== previousId;
+  }, firstWorkspace);
+  const resetWorkspace = await page.evaluate(() => JSON.parse(localStorage.getItem('demo:clc:workspace') ?? '{}').workspaceId);
+  assert.notEqual(resetWorkspace, firstWorkspace, 'reset provisions a fresh isolated workspace');
+  await page.getByRole('button', { name: 'Start for real' }).click();
+  await page.waitForURL(`${baseURL}/new`);
+  assert.equal(await page.evaluate(() => localStorage.getItem('demo:clc:workspace')), null, 'leaving demo discards its local data');
+  assert.deepEqual(await page.evaluate(() => JSON.parse(localStorage.getItem('clc:archive') ?? 'null')), [{ id: 'real-record' }], 'leaving demo preserves real storage');
+  await page.evaluate(() => localStorage.removeItem('clc:archive'));
+
+  for (const route of ['/demo', '/join', '/pricing', '/team', '/privacy', '/terms']) {
+    const response = await page.goto(`${baseURL}${route}`);
+    assert.equal(response?.status(), 200, `${route} response status`);
     assert.equal(await page.locator('h1').count(), 1, `${route} must have one h1`);
     assert.equal(await page.locator('link[rel="canonical"]').getAttribute('href'), `https://code-lesson-checkpoints.sociobot.in${route}`);
     assert.equal(await page.locator('body').evaluate((body) => body.scrollWidth <= innerWidth), true, `${route} overflows at 390px`);
@@ -89,7 +127,7 @@ try {
   await billingPage.goto(`${baseURL}/pricing?license=qa-license-token`);
   await billingPage.getByRole('link', { name: 'Open Team archive' }).waitFor();
   assert.equal(new URL(billingPage.url()).searchParams.has('license'), false, 'returned license is removed from the visible URL');
-  assert.equal(await billingPage.locator('a[href="/team"]').count(), 2, 'returned valid license unlocks the first pricing render');
+  assert.equal(await billingPage.locator('a[href="/team"]').count(), 1, 'returned valid license unlocks the first pricing render');
   await billingContext.close();
 
   await page.goto(`${baseURL}/new`);
@@ -141,8 +179,9 @@ try {
   const desktop = await browser.newContext({ viewport: { width: 1440, height: 1000 } });
   const desktopPage = await desktop.newPage();
   observe(desktopPage);
-  for (const route of ['/', '/join', '/new', '/pricing', '/team', '/privacy', '/terms', '/missing-page']) {
-    await desktopPage.goto(`${baseURL}${route}`, { waitUntil: 'networkidle' });
+  for (const route of ['/', '/demo', '/join', '/new', '/pricing', '/team', '/privacy', '/terms']) {
+    const response = await desktopPage.goto(`${baseURL}${route}`, { waitUntil: 'networkidle' });
+    assert.equal(response?.status(), 200, `desktop ${route} response status`);
     assert.equal(await desktopPage.locator('body').evaluate((body) => body.scrollWidth <= innerWidth), true, `${route} overflows at desktop`);
     await assertAccessible(desktopPage, `desktop ${route}`);
   }
@@ -153,6 +192,17 @@ try {
   assert.equal(await desktopPage.locator('html').evaluate((html) => getComputedStyle(html).scrollBehavior), 'auto');
   assert.equal(await desktopPage.locator('.button').first().evaluate((button) => parseFloat(getComputedStyle(button).transitionDuration) <= 0.001), true, 'reduced motion removes meaningful transitions');
   await desktop.close();
+
+  // A real document-level 404 produces Chromium's expected failed-resource
+  // console line, so verify it in an isolated page and keep the normal-route
+  // console assertion signal-free.
+  const missingContext = await browser.newContext({ viewport: { width: 390, height: 844 } });
+  const missingPage = await missingContext.newPage();
+  const missingResponse = await missingPage.goto(`${baseURL}/missing-page`);
+  assert.equal(missingResponse?.status(), 404, 'unknown route has a real HTTP 404');
+  assert.equal(await missingPage.locator('h1').count(), 1, 'not-found page has one h1');
+  await assertAccessible(missingPage, 'not-found page');
+  await missingContext.close();
 
   assert.deepEqual(consoleErrors, [], `browser console errors: ${consoleErrors.join('; ')}`);
   assert.deepEqual([...new Set(unexpectedOrigins)], [], `public and lesson routes contacted third parties: ${unexpectedOrigins.join('; ')}`);

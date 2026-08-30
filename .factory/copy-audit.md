@@ -7,6 +7,7 @@ Audited 2026-08-30. Counts treat contractions and hyphenated terms as one word. 
 | See where the lesson got stuck. | 7 |
 | Remote programming tutors define runnable checkpoints. | 6 |
 | Learners run them locally and choose what evidence to share. | 10 |
+| Try it with sample data | 5 |
 | Plan a lesson | 3 |
 | I have a lesson code | 5 |
 | No source uploads | 3 |
@@ -32,3 +33,4 @@ Audited 2026-08-30. Counts treat contractions and hyphenated terms as one word. 
 | Private teacher access | tutor link |
 | Ordered lesson activity | checkpoint trail |
 | Paid local roster | Team archive |
+| Isolated sample workspace | demo |

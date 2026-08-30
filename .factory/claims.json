@@ -1,0 +1,44 @@
+[
+  {
+    "id": "demo-isolation",
+    "claim": "Try it with sample data opens a separate 24-hour workspace without changing real browser or lesson data.",
+    "where": "landing primary action, demo banner, README",
+    "test": "npm run test:claims -- --grep @claim:demo-isolation",
+    "sandbox": "fresh 390px browser context; seed sentinel real keys; open /demo; assert only demo:clc:workspace changes; reset and assert a new workspace id"
+  },
+  {
+    "id": "consented-redacted-evidence",
+    "claim": "Learners share only consented status, selected output, and an optional note; common secrets are redacted and output is capped at 8,000 characters.",
+    "where": "landing, lesson form, evidence dialog, privacy page, README",
+    "test": "npm run test:claims -- --grep @claim:consented-redacted-evidence",
+    "sandbox": "fresh synthetic lesson; reject unconsented evidence; submit a credential plus 8,100 characters; assert stored redaction, cap, note, tutor reply, and cleanup"
+  },
+  {
+    "id": "offline-demo-reload",
+    "claim": "The sample lesson reloads offline after its first visit.",
+    "where": "README and demo behavior",
+    "test": "npm run test:claims -- --grep @claim:offline-demo-reload",
+    "sandbox": "fresh browser context; register service worker; load /demo; set that context offline; reload and assert the sample plus visible offline state"
+  },
+  {
+    "id": "json-export",
+    "claim": "Tutors can export a lesson record as JSON.",
+    "where": "tutor and demo toolbars, pricing, README",
+    "test": "npm run test:claims -- --grep @claim:json-export",
+    "sandbox": "fresh /demo workspace; download JSON; parse it and assert the sample title, three checkpoints, and blocked evidence"
+  },
+  {
+    "id": "paid-team-checkout",
+    "claim": "Pair is free and Team archive is a $39 one-time purchase through the Sociobot hosted checkout.",
+    "where": "pricing, terms, README",
+    "test": "npm run test:claims -- --grep @claim:paid-team-checkout",
+    "sandbox": "fresh pricing page; assert price and one-time copy; request the advertised checkout without following it; assert 303 to checkout.dodopayments.com"
+  },
+  {
+    "id": "no-tracking",
+    "claim": "No advertising trackers or third-party analytics run in the public or demo flow, and no source-file upload is offered.",
+    "where": "landing footer, privacy page, README",
+    "test": "npm run test:claims -- --grep @claim:no-tracking",
+    "sandbox": "fresh browser context; record every request across / and /demo; assert same-origin only and no file input"
+  }
+]

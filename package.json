@@ -10,6 +10,7 @@
     "test": "npm run test:unit && cargo test",
     "test:unit": "vitest run --config vitest.config.ts",
     "test:e2e": "node tests/browser-smoke.mjs",
+    "test:claims": "node tests/claims.mjs",
     "test:pwa": "node tests/pwa-smoke.mjs",
     "test:load": "node tests/load-smoke.mjs",
     "test:coherence": "node tests/live-coherence.mjs",

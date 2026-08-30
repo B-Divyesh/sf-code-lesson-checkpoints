@@ -4,6 +4,8 @@ Code Lesson Checkpoints gives remote programming tutors a consent-based trail of
 
 The free Pair plan is useful for one tutor/learner pair. A $39 one-time Team archive license adds small-roster history controls through the Sociobot billing service. The app never embeds a payment provider.
 
+Try the isolated sample at `https://code-lesson-checkpoints.sociobot.in/demo`. It opens a realistic three-checkpoint lesson with a passed run, a blocked run, redacted evidence, and a tutor reply. **Reset demo** provisions a fresh 24-hour in-memory workspace. **Start for real** discards the sample and opens the lesson planner. Demo state uses only the `demo:clc:workspace` browser key and never enters the lesson database.
+
 ## What is included
 
 - Rust/Axum relay with SQLite, hashed private tutor tokens, short learner codes, validation, secure response headers, JSON logs, migrations, and graceful shutdown
@@ -41,6 +43,7 @@ Configuration is environment-only:
 
 ```bash
 npm test             # Vitest privacy helpers + Rust unit/API flow tests
+npm run test:claims  # every user-facing claim against the sample sandbox
 npm run check        # strict TypeScript checks, including the extension
 npm run lint         # TypeScript, Rust formatting, and Clippy
 npm run build
@@ -49,7 +52,7 @@ docker build -t code-lesson-checkpoints .
 docker run --rm -p 8080:8080 -v clc-data:/data code-lesson-checkpoints
 ```
 
-The complete API integration test creates a lesson, opens it as the learner, submits redacted evidence, reads it through the private tutor link, and deletes it.
+The complete API integration test creates a lesson, opens it as the learner, submits redacted evidence, reads it through the private tutor link, and deletes it. [`.factory/claims.json`](.factory/claims.json) maps each public claim to one exact browser/API regression, and [`.factory/demo.md`](.factory/demo.md) documents the clean demo entry point.
 
 ## VS Code companion
 

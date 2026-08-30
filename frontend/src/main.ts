@@ -9,10 +9,12 @@ declare const __BUILD_SHA__: string;
 
 const PRODUCT_SLUG = 'code-lesson-checkpoints';
 const BILLING_BASE = 'https://api.sociobot.in/api/v1';
+const DEMO_STORAGE_KEY = 'demo:clc:workspace';
 const app = document.querySelector<HTMLDivElement>('#app')!;
 
 type ApiError = Error & { status?: number };
 type ArchivedLesson = { id: string; title: string; learnerName: string; shareCode: string; tutorToken: string; createdAt: string };
+type DemoWorkspace = { workspaceId: string; expiresAt: number; lesson: Lesson };
 
 const icon = (name: 'mark' | 'lock' | 'copy' | 'run' | 'reply' | 'check' | 'block') => {
   const paths = {
@@ -31,19 +33,20 @@ function escapeHtml(value: unknown): string {
   return String(value ?? '').replace(/[&<>'"]/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' })[character] ?? character);
 }
 
-function shell(content: string, options: { compact?: boolean; current?: string } = {}): string {
+function shell(content: string, options: { compact?: boolean; current?: string; demo?: boolean } = {}): string {
   return `
     <header class="site-header">
       <a class="brand" href="/" aria-label="Code Lesson Checkpoints home">
         <span class="brand-mark">${icon('mark')}</span><span>Code Lesson<br><strong>Checkpoints</strong></span>
       </a>
       <nav aria-label="Main navigation">
+        <a ${options.current === 'demo' ? 'aria-current="page"' : ''} href="/demo">Demo</a>
         <a ${options.current === 'join' ? 'aria-current="page"' : ''} href="/join">Join lesson</a>
         <a ${options.current === 'pricing' ? 'aria-current="page"' : ''} href="/pricing">Team plan</a>
-        <a ${options.current === 'team' ? 'aria-current="page"' : ''} href="/team">Archive</a>
         <a class="header-action" href="/new">Plan a lesson</a>
       </nav>
     </header>
+    ${options.demo ? `<aside class="demo-banner" aria-label="Sample-data demo"><div><strong>Demo — sample data, nothing is saved</strong><span>Use the tutor view without changing a real lesson.</span></div><div><button type="button" id="reset-demo">Reset demo</button><button type="button" id="start-real">Start for real</button></div></aside>` : ''}
     <main id="main" class="${options.compact ? 'main compact' : 'main'}">${content}</main>
     <footer>
       <p><strong>Code Lesson Checkpoints</strong><br><span>Execution evidence, shared by the learner.</span></p>
@@ -89,7 +92,7 @@ function home(): void {
         <p class="eyebrow"><span></span>Learner-owned evidence</p>
         <h1>See where the lesson got <em>stuck.</em></h1>
         <p class="lede">Remote programming tutors define runnable checkpoints. Learners run them locally and choose what evidence to share.</p>
-        <div class="hero-actions"><a class="button primary" href="/new">Plan a lesson ${icon('run')}</a><a class="text-link" href="/join">I have a lesson code <span aria-hidden="true">→</span></a></div>
+        <div class="hero-actions"><a class="button primary" href="/demo">Try it with sample data ${icon('run')}</a><a class="button secondary" href="/new">Plan a lesson</a><a class="text-link" href="/join">I have a lesson code <span aria-hidden="true">→</span></a></div>
         <ul class="trust-row" aria-label="Privacy promises"><li>${icon('lock')} No source uploads</li><li>${icon('check')} Output reviewed first</li><li>${icon('mark')} Free for one pair</li></ul>
       </div>
       <figure class="hero-art paper-layer">
@@ -318,6 +321,110 @@ function renderLesson(lesson: Lesson, role: 'tutor' | 'learner', token: string |
   if (created) announce('Lesson created. Your private tutor link is saved on this device.');
 }
 
+function storedDemo(): DemoWorkspace | null {
+  try {
+    const workspace = JSON.parse(localStorage.getItem(DEMO_STORAGE_KEY) ?? 'null') as DemoWorkspace | null;
+    if (!workspace?.workspaceId || !workspace.lesson || workspace.expiresAt * 1000 <= Date.now()) {
+      localStorage.removeItem(DEMO_STORAGE_KEY);
+      return null;
+    }
+    return workspace;
+  } catch {
+    localStorage.removeItem(DEMO_STORAGE_KEY);
+    return null;
+  }
+}
+
+async function discardDemo(workspaceId: string): Promise<void> {
+  await fetch(`/api/demo/workspaces/${encodeURIComponent(workspaceId)}`, { method: 'DELETE' }).catch(() => undefined);
+}
+
+async function demoPage(forceFresh = false): Promise<void> {
+  document.title = 'Demo — Code Lesson Checkpoints';
+  if (forceFresh) localStorage.removeItem(DEMO_STORAGE_KEY);
+  const cached = storedDemo();
+  if (cached) {
+    renderDemo(cached);
+    return;
+  }
+  app.innerHTML = shell('<section class="loading-state" aria-live="polite"><div class="paper-spinner"></div><h1>Loading the sample lesson…</h1><p>Creating an isolated workspace that expires in 24 hours.</p></section>', { current: 'demo', demo: true });
+  try {
+    const workspace = await api<DemoWorkspace>('/api/demo/workspaces', { method: 'POST', body: '{}' });
+    localStorage.setItem(DEMO_STORAGE_KEY, JSON.stringify(workspace));
+    renderDemo(workspace);
+  } catch (cause) {
+    const message = cause instanceof Error ? cause.message : 'The sample lesson could not be loaded.';
+    app.innerHTML = shell(`<section class="error-state paper-layer"><span class="error-mark">!</span><h1>The sample did not load.</h1><p>${escapeHtml(message)}</p><button class="button primary" type="button" id="retry-demo">Try the sample again</button></section>`, { current: 'demo', demo: true });
+    document.querySelector('#retry-demo')?.addEventListener('click', () => void demoPage(true));
+    bindDemoBanner({ workspaceId: '', expiresAt: 0, lesson: {} as Lesson });
+  }
+}
+
+function renderDemo(workspace: DemoWorkspace): void {
+  const { lesson } = workspace;
+  const completed = lesson.checkpoints.filter((checkpoint) => statusFor(checkpoint) === 'passed').length;
+  const blocked = lesson.checkpoints.find((checkpoint) => statusFor(checkpoint) === 'blocked');
+  app.innerHTML = shell(`
+    <section class="lesson-header demo-intro">
+      <div><p class="eyebrow"><span></span>Tutor view · realistic sample</p><h1>Find the first blocked checkpoint.</h1><p>${escapeHtml(lesson.learnerName)} is debugging a weather API. The sample already contains runs, notes, and a tutor reply.</p></div>
+      <div class="lesson-actions"><button class="button secondary" id="demo-export" type="button">Export sample record</button></div>
+    </section>
+    <div class="lesson-layout demo-layout">
+      <aside class="lesson-rail">
+        <div class="progress-ring" aria-label="${completed} of ${lesson.checkpoints.length} checkpoints passed"><strong>${completed}/${lesson.checkpoints.length}</strong><span>passed</span></div>
+        <div><h2>Lesson pulse</h2>${blocked ? `<p class="pulse-blocked">${icon('block')} First block at checkpoint ${blocked.position}</p><a href="#checkpoint-${escapeHtml(blocked.id)}">Jump to the snag →</a>` : '<p>Waiting for a learner update.</p>'}</div>
+        <dl><div><dt>Lesson code</dt><dd>${escapeHtml(lesson.shareCode)}</dd></div><div><dt>Privacy</dt><dd>${icon('lock')} Selected evidence only</dd></div></dl>
+        <p class="rail-note">This 24-hour workspace is separate from real lessons. Resetting removes its local sample copy.</p>
+      </aside>
+      <section class="timeline" aria-labelledby="demo-timeline-title"><div class="timeline-intro"><h2 id="demo-timeline-title">Checkpoint trail</h2><p>Open each attempt to see the chosen output, note, and reply.</p></div><ol>${lesson.checkpoints.map((checkpoint) => checkpointMarkup(checkpoint, 'tutor')).join('')}</ol></section>
+    </div>
+    <section class="demo-redaction" aria-labelledby="demo-redaction-title">
+      <div><p class="eyebrow"><span></span>Safe practice area</p><h2 id="demo-redaction-title">Preview output redaction.</h2><p>Paste test output here. The browser hides common credentials and trims shared output to 8,000 characters.</p></div>
+      <div><label for="demo-output">Sample terminal output<textarea id="demo-output" rows="5" spellcheck="false" placeholder="API_KEY=sample-secret"></textarea></label><p id="demo-redaction-status" role="status">Nothing entered. This preview stays in the demo.</p><pre id="demo-redacted" hidden><code></code></pre></div>
+    </section>`, { current: 'demo', demo: true });
+
+  bindDemoBanner(workspace);
+  document.querySelector<HTMLButtonElement>('#demo-export')?.addEventListener('click', () => {
+    const blob = new Blob([JSON.stringify(lesson, null, 2)], { type: 'application/json' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = 'sample-code-lesson-checkpoints.json';
+    link.click();
+    URL.revokeObjectURL(link.href);
+    announce('Sample record exported as JSON.');
+  });
+  const output = document.querySelector<HTMLTextAreaElement>('#demo-output');
+  const status = document.querySelector<HTMLElement>('#demo-redaction-status');
+  const preview = document.querySelector<HTMLElement>('#demo-redacted');
+  const code = preview?.querySelector('code');
+  output?.addEventListener('input', () => {
+    const redacted = redactOutput(output.value);
+    if (code) code.textContent = redacted.text;
+    if (preview) preview.hidden = output.value.length === 0;
+    if (status) status.textContent = output.value.length === 0
+      ? 'Nothing entered. This preview stays in the demo.'
+      : `${redacted.redactions} possible ${redacted.redactions === 1 ? 'secret' : 'secrets'} hidden.${redacted.trimmed ? ' Output trimmed to 8,000 characters.' : ''}`;
+  });
+  bindConnectivity();
+}
+
+function bindDemoBanner(workspace: DemoWorkspace): void {
+  const reset = document.querySelector<HTMLButtonElement>('#reset-demo');
+  reset?.addEventListener('click', async () => {
+    reset.disabled = true;
+    reset.setAttribute('aria-busy', 'true');
+    if (workspace.workspaceId) await discardDemo(workspace.workspaceId);
+    localStorage.removeItem(DEMO_STORAGE_KEY);
+    await demoPage(true);
+    announce('Demo reset with a fresh sample workspace.');
+  });
+  document.querySelector<HTMLButtonElement>('#start-real')?.addEventListener('click', () => {
+    if (workspace.workspaceId) void discardDemo(workspace.workspaceId);
+    localStorage.removeItem(DEMO_STORAGE_KEY);
+    location.assign('/new');
+  });
+}
+
 function bindLessonEvents(lesson: Lesson, role: 'tutor' | 'learner', token: string | null): void {
   document.querySelectorAll<HTMLButtonElement>('[data-copy]').forEach((button) => button.addEventListener('click', async () => {
     try { await navigator.clipboard.writeText(button.dataset.copy ?? ''); announce('Copied to clipboard.'); }
@@ -481,7 +588,7 @@ function legal(kind: 'privacy' | 'terms'): void {
     <p class="updated">Effective August 28, 2026</p><h1>Privacy, in plain language.</h1><p class="legal-lede">The product exists to share less than a screen recording—not to create a new surveillance stream.</p>
     <h2>What the relay stores</h2><p>For a lesson, the relay stores its title, optional learner name, checkpoint commands, selected command output, learner notes, tutor replies, status, and timestamps. It does not request or upload project source files. Common secret patterns are redacted in your browser and again on the server, but you should still review output before submitting.</p>
     <h2>Access and retention</h2><p>A random private link controls tutor access. A six-character lesson code lets the learner view and submit to that lesson. Treat both as private. The tutor can permanently delete the lesson and all related evidence at any time. Operational backups, if enabled by the host, expire on the host’s backup schedule.</p>
-    <h2>Local device data</h2><p>Your browser stores private tutor links and, if purchased, the Sociobot license token and a daily verification result. Clear site data to remove them from that device.</p>
+    <h2>Local device data</h2><p>Your browser stores private tutor links and, if purchased, the Sociobot license token and a daily verification result. The sample demo uses a separate browser key that Reset demo or Start for real removes. Clear site data to remove all local records from that device.</p>
     <h2>Payments and measurement</h2><p>Sociobot/Dodo is the merchant of record and handles checkout. This app does not receive payment card details. No advertising trackers or third-party analytics run here. The host may retain short-lived server request logs for reliability and abuse prevention.</p>
     <h2>Your choices</h2><p>Do not enter sensitive personal information into lesson titles, notes, or output. Tutors can delete a lesson from its private view. For access or deletion help when the private link is lost, contact the site operator through the project repository.</p>` : `
     <p class="updated">Effective August 28, 2026</p><h1>Terms for a clear lesson record.</h1><p class="legal-lede">Use Code Lesson Checkpoints as a consent-based teaching aid, not an automated judge or monitoring tool.</p>
@@ -501,6 +608,7 @@ function route(): void {
   }
   const path = location.pathname.replace(/\/+$/, '') || '/';
   if (path === '/') home();
+  else if (path === '/demo') void demoPage();
   else if (path === '/new') newLesson();
   else if (path === '/join') join();
   else if (path === '/pricing') void pricing();
