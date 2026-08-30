@@ -47,6 +47,8 @@ try {
   assert.equal(await page.locator('main').count(), 1);
   assert.equal(await page.locator('h1').count(), 1);
   assert.match(await page.title(), /Code Lesson Checkpoints/);
+  assert.equal(await page.locator('link[rel="canonical"]').getAttribute('href'), 'https://code-lesson-checkpoints.sociobot.in/');
+  assert.equal(await page.locator('meta[property="og:image"]').getAttribute('content'), 'https://code-lesson-checkpoints.sociobot.in/assets/social-card.jpg');
   assert.equal(await page.locator('img:not([alt])').count(), 0);
   assert.equal((await page.locator('body').evaluate((body) => body.scrollWidth <= innerWidth)), true, 'home page overflows at 390px');
   await assertTouchTargets(page, [
@@ -62,9 +64,10 @@ try {
   assert.deepEqual(footerTargets, [true, true, true], 'footer links meet the 44 px touch target');
   await assertAccessible(page, 'home page');
 
-  for (const route of ['/join', '/pricing', '/privacy', '/terms']) {
+  for (const route of ['/join', '/pricing', '/team', '/privacy', '/terms', '/missing-page']) {
     await page.goto(`${baseURL}${route}`);
     assert.equal(await page.locator('h1').count(), 1, `${route} must have one h1`);
+    assert.equal(await page.locator('link[rel="canonical"]').getAttribute('href'), `https://code-lesson-checkpoints.sociobot.in${route}`);
     assert.equal(await page.locator('body').evaluate((body) => body.scrollWidth <= innerWidth), true, `${route} overflows at 390px`);
     if (route === '/pricing') {
       await assertTouchTargets(page, [
@@ -138,7 +141,7 @@ try {
   const desktop = await browser.newContext({ viewport: { width: 1440, height: 1000 } });
   const desktopPage = await desktop.newPage();
   observe(desktopPage);
-  for (const route of ['/', '/join', '/new', '/pricing', '/privacy', '/terms']) {
+  for (const route of ['/', '/join', '/new', '/pricing', '/team', '/privacy', '/terms', '/missing-page']) {
     await desktopPage.goto(`${baseURL}${route}`, { waitUntil: 'networkidle' });
     assert.equal(await desktopPage.locator('body').evaluate((body) => body.scrollWidth <= innerWidth), true, `${route} overflows at desktop`);
     await assertAccessible(desktopPage, `desktop ${route}`);

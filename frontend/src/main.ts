@@ -5,6 +5,8 @@ import './style.css';
 import type { Checkpoint, Lesson, Submission } from './types';
 import { normalizeShareCode, redactOutput } from './privacy';
 
+declare const __BUILD_SHA__: string;
+
 const PRODUCT_SLUG = 'code-lesson-checkpoints';
 const BILLING_BASE = 'https://api.sociobot.in/api/v1';
 const app = document.querySelector<HTMLDivElement>('#app')!;
@@ -46,7 +48,7 @@ function shell(content: string, options: { compact?: boolean; current?: string }
     <footer>
       <p><strong>Code Lesson Checkpoints</strong><br><span>Execution evidence, shared by the learner.</span></p>
       <nav aria-label="Legal"><a href="/privacy">Privacy</a><a href="/terms">Terms</a><a href="https://github.com/B-Divyesh/sf-code-lesson-checkpoints">Source</a></nav>
-      <p class="made-note">Paper-path artwork generated for this product. No source code is uploaded by default.</p>
+      <p class="made-note">Paper-path artwork generated for this product. No source code is uploaded by default.<br>Built by Param Factory · Version 0.1.0 (${escapeHtml(__BUILD_SHA__.slice(0, 12))})</p>
     </footer>
     <div id="toast" class="toast" role="status" aria-live="polite"></div>
     <div id="offline" class="offline" role="status" hidden>You’re offline. Existing details stay visible; reconnect to share updates.</div>`;
@@ -80,13 +82,13 @@ function announce(message: string): void {
 }
 
 function home(): void {
-  document.title = 'Code Lesson Checkpoints — runnable milestones, not screen takeover';
+  document.title = 'Code Lesson Checkpoints — Share runnable milestones';
   app.innerHTML = shell(`
     <section class="hero">
       <div class="hero-copy">
         <p class="eyebrow"><span></span>Learner-owned evidence</p>
         <h1>See where the lesson got <em>stuck.</em></h1>
-        <p class="lede">Turn a coding lesson into runnable checkpoints. Your learner runs each command locally, chooses what to share, and leaves you a clear trail—without another screen takeover.</p>
+        <p class="lede">Remote programming tutors define runnable checkpoints. Learners run them locally and choose what evidence to share.</p>
         <div class="hero-actions"><a class="button primary" href="/new">Plan a lesson ${icon('run')}</a><a class="text-link" href="/join">I have a lesson code <span aria-hidden="true">→</span></a></div>
         <ul class="trust-row" aria-label="Privacy promises"><li>${icon('lock')} No source uploads</li><li>${icon('check')} Output reviewed first</li><li>${icon('mark')} Free for one pair</li></ul>
       </div>
@@ -511,6 +513,12 @@ function route(): void {
     document.title = 'Page not found — Code Lesson Checkpoints';
     app.innerHTML = shell('<section class="error-state paper-layer"><span class="error-mark">404</span><h1>This path has no checkpoint.</h1><p>The page may have moved, or the address may be incomplete.</p><a class="button primary" href="/">Return home</a></section>');
   }
+  const canonicalPath = path === '/' ? '/' : path;
+  const canonicalUrl = `https://code-lesson-checkpoints.sociobot.in${canonicalPath}`;
+  document.querySelector<HTMLLinkElement>('link[rel="canonical"]')?.setAttribute('href', canonicalUrl);
+  document.querySelector<HTMLMetaElement>('meta[property="og:url"]')?.setAttribute('content', canonicalUrl);
+  document.querySelector<HTMLMetaElement>('meta[property="og:title"]')?.setAttribute('content', document.title);
+  document.querySelector<HTMLMetaElement>('meta[name="twitter:title"]')?.setAttribute('content', document.title);
   bindConnectivity();
 }
 

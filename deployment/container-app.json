@@ -4,7 +4,11 @@
   "resourceGroup": "sociobot",
   "environment": "factory-env",
   "appName": "sf-code-lesson-checkpoints",
+  "publicUrl": "https://code-lesson-checkpoints.sociobot.in",
+  "registry": "sociobotregistry",
+  "imageRepository": "sf-code-lesson-checkpoints",
   "targetPort": 8080,
+  "activeRevisionsMode": "Single",
   "scale": {
     "minReplicas": 1,
     "maxReplicas": 1

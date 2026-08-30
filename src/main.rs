@@ -1,7 +1,12 @@
-use std::{env, net::SocketAddr, path::PathBuf, time::Duration};
+use std::{
+    env,
+    net::{IpAddr, SocketAddr},
+    path::PathBuf,
+    time::Duration,
+};
 
 use axum::{
-    extract::{DefaultBodyLimit, Path, State},
+    extract::{ConnectInfo, DefaultBodyLimit, Path, State},
     http::{header, HeaderMap, HeaderValue, Method, StatusCode},
     response::{IntoResponse, Response},
     routing::{get, post, put},
@@ -16,7 +21,7 @@ use sqlx::{
     Row, SqlitePool,
 };
 use tower_governor::{
-    governor::GovernorConfigBuilder, key_extractor::GlobalKeyExtractor, GovernorLayer,
+    governor::GovernorConfigBuilder, key_extractor::KeyExtractor, GovernorError, GovernorLayer,
 };
 use tower_http::{
     compression::CompressionLayer,
@@ -32,6 +37,40 @@ use uuid::Uuid;
 struct AppState {
     db: SqlitePool,
     build_sha: String,
+}
+
+/// The factory ingress writes the originating client as the first
+/// `X-Forwarded-For` hop. Keeping only that hop prevents one client from
+/// consuming another client's allowance. Direct/local requests fall back to
+/// their socket address (or one shared local key in in-process tests).
+#[derive(Clone, Copy, Debug)]
+struct ClientIpKeyExtractor;
+
+impl KeyExtractor for ClientIpKeyExtractor {
+    type Key = IpAddr;
+
+    fn extract<T>(&self, request: &axum::http::Request<T>) -> Result<Self::Key, GovernorError> {
+        if let Some(forwarded) = request.headers().get("x-forwarded-for") {
+            let first_hop = forwarded
+                .to_str()
+                .ok()
+                .and_then(|value| value.split(',').next())
+                .map(str::trim)
+                .and_then(|value| value.parse::<IpAddr>().ok())
+                .ok_or_else(|| GovernorError::Other {
+                    code: StatusCode::BAD_REQUEST,
+                    msg: Some("X-Forwarded-For must begin with a valid client IP address.".into()),
+                    headers: None,
+                })?;
+            return Ok(first_hop);
+        }
+
+        Ok(request
+            .extensions()
+            .get::<ConnectInfo<SocketAddr>>()
+            .map(|connection| connection.0.ip())
+            .unwrap_or(IpAddr::from([0, 0, 0, 0])))
+    }
 }
 
 #[derive(Debug)]
@@ -187,9 +226,12 @@ async fn main() -> anyhow::Result<()> {
     let addr = SocketAddr::from(([0, 0, 0, 0], port));
     let listener = tokio::net::TcpListener::bind(addr).await?;
     info!(%addr, "Code Lesson Checkpoints is ready");
-    axum::serve(listener, app)
-        .with_graceful_shutdown(shutdown())
-        .await?;
+    axum::serve(
+        listener,
+        app.into_make_service_with_connect_info::<SocketAddr>(),
+    )
+    .with_graceful_shutdown(shutdown())
+    .await?;
     Ok(())
 }
 
@@ -238,27 +280,42 @@ fn app(state: AppState, dist: PathBuf) -> Router {
             header::CACHE_CONTROL,
             HeaderValue::from_static("public, max-age=31536000, immutable"),
         ));
-    let mut rate_builder = GovernorConfigBuilder::default();
-    rate_builder
-        .per_millisecond(10)
-        .burst_size(100)
+    // All API traffic has a per-client ceiling. Mutations consume a second,
+    // stricter bucket so brute-force reads cannot block another client and a
+    // write flood cannot monopolize the SQLite writer.
+    let mut api_rate_builder = GovernorConfigBuilder::default().key_extractor(ClientIpKeyExtractor);
+    api_rate_builder.per_millisecond(20).burst_size(100);
+    let api_rate_limit = api_rate_builder.finish().expect("valid rate limit");
+    let mut mutation_rate_builder =
+        GovernorConfigBuilder::default().key_extractor(ClientIpKeyExtractor);
+    mutation_rate_builder
+        .per_millisecond(100)
+        .burst_size(30)
         .methods(vec![Method::POST, Method::PUT, Method::DELETE]);
-    let rate_limit = rate_builder
-        .key_extractor(GlobalKeyExtractor)
+    let mutation_rate_limit = mutation_rate_builder
         .finish()
-        .expect("valid rate limit");
+        .expect("valid mutation rate limit");
+    let api = Router::new()
+        .route("/lessons", post(create_lesson))
+        .route("/lessons/code/{code}", get(get_learner_lesson))
+        .route(
+            "/lessons/code/{code}/checkpoints/{checkpoint_id}/submissions",
+            post(submit_evidence),
+        )
+        .route(
+            "/tutor/lessons/{id}",
+            get(get_tutor_lesson).delete(delete_lesson),
+        )
+        .route("/tutor/submissions/{id}/reply", put(reply_to_submission))
+        .layer(DefaultBodyLimit::max(64 * 1024))
+        .layer(GovernorLayer::new(mutation_rate_limit).error_handler(rate_limit_error))
+        .layer(GovernorLayer::new(api_rate_limit).error_handler(rate_limit_error));
 
     Router::new()
         .route("/health", get(health))
-        .route("/api/lessons", post(create_lesson))
-        .route("/api/lessons/code/{code}", get(get_learner_lesson))
-        .route("/api/lessons/code/{code}/checkpoints/{checkpoint_id}/submissions", post(submit_evidence))
-        .route("/api/tutor/lessons/{id}", get(get_tutor_lesson).delete(delete_lesson))
-        .route("/api/tutor/submissions/{id}/reply", put(reply_to_submission))
+        .nest("/api", api)
         .nest("/assets", immutable_assets)
         .fallback_service(static_files)
-        .layer(DefaultBodyLimit::max(64 * 1024))
-        .layer(GovernorLayer::new(rate_limit))
         .layer(CompressionLayer::new())
         .layer(cors)
         .layer(SetResponseHeaderLayer::if_not_present(header::X_CONTENT_TYPE_OPTIONS, HeaderValue::from_static("nosniff")))
@@ -266,6 +323,29 @@ fn app(state: AppState, dist: PathBuf) -> Router {
         .layer(SetResponseHeaderLayer::if_not_present(header::CONTENT_SECURITY_POLICY, HeaderValue::from_static("default-src 'self'; img-src 'self' data:; style-src 'self'; script-src 'self'; connect-src 'self' https://api.sociobot.in https://pilot-api.sociobot.in; font-src 'self'; base-uri 'none'; frame-ancestors 'none'; form-action 'self' https://api.sociobot.in")))
         .layer(TraceLayer::new_for_http())
         .with_state(state)
+}
+
+fn rate_limit_error(error: GovernorError) -> Response {
+    if matches!(error, GovernorError::TooManyRequests { .. }) {
+        let mut response = (
+            StatusCode::TOO_MANY_REQUESTS,
+            Json(json!({ "error": "Too many requests. Wait one second and try again." })),
+        )
+            .into_response();
+        // tower-governor truncates sub-second waits to zero. HTTP clients need
+        // a useful delay, so report the ceiling of this product's wait time.
+        response
+            .headers_mut()
+            .insert(header::RETRY_AFTER, HeaderValue::from_static("1"));
+        response.headers_mut().insert(
+            header::HeaderName::from_static("x-ratelimit-after"),
+            HeaderValue::from_static("1"),
+        );
+        return response;
+    }
+
+    let response: axum::http::Response<axum::body::Body> = error.into();
+    response
 }
 
 async fn health(State(state): State<AppState>) -> Json<Value> {
@@ -587,6 +667,22 @@ mod tests {
     };
     use tower::ServiceExt;
 
+    async fn test_service() -> Router {
+        let db = SqlitePoolOptions::new()
+            .max_connections(1)
+            .connect("sqlite::memory:")
+            .await
+            .unwrap();
+        sqlx::migrate!().run(&db).await.unwrap();
+        app(
+            AppState {
+                db,
+                build_sha: "test".into(),
+            },
+            PathBuf::from("dist"),
+        )
+    }
+
     #[test]
     fn redacts_common_secrets_and_caps_output() {
         let value = "API_KEY=supersecret\nAuthorization: Bearer abcdefghijklmnopqrstuvwxyz\nDATABASE_URL=postgres://qa_user:qa_password@db.example/private\nredis://cache_user:cache_password@cache.example/0\nok";
@@ -602,6 +698,118 @@ mod tests {
     #[test]
     fn normalizes_share_codes() {
         assert_eq!(normalize_code("ab-12 cd"), "AB12CD");
+    }
+
+    #[test]
+    fn rate_limit_key_uses_only_the_first_forwarded_hop() {
+        let request = Request::builder()
+            .header("x-forwarded-for", "198.51.100.24, 10.0.0.7")
+            .body(Body::empty())
+            .unwrap();
+        assert_eq!(
+            ClientIpKeyExtractor.extract(&request).unwrap(),
+            "198.51.100.24".parse::<IpAddr>().unwrap()
+        );
+    }
+
+    #[tokio::test]
+    async fn api_reads_are_limited_per_client_with_a_positive_retry_after() {
+        let service = test_service().await;
+        let mut requests = tokio::task::JoinSet::new();
+        for _ in 0..140 {
+            let request_service = service.clone();
+            requests.spawn(async move {
+                request_service
+                    .oneshot(
+                        Request::builder()
+                            .uri("/api/lessons/code/ZZZZZZ")
+                            .header("x-forwarded-for", "198.51.100.10, 10.0.0.4")
+                            .body(Body::empty())
+                            .unwrap(),
+                    )
+                    .await
+                    .unwrap()
+            });
+        }
+
+        let mut limited = None;
+        while let Some(response) = requests.join_next().await {
+            let response = response.unwrap();
+            if response.status() == StatusCode::TOO_MANY_REQUESTS {
+                limited = Some(response);
+            }
+        }
+        let limited = limited.expect("a read burst must be throttled");
+        assert_eq!(limited.headers().get(header::RETRY_AFTER).unwrap(), "1");
+
+        let other_client = service
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .uri("/api/lessons/code/ZZZZZZ")
+                    .header("x-forwarded-for", "203.0.113.9, 10.0.0.4")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(other_client.status(), StatusCode::NOT_FOUND);
+
+        let health = service
+            .oneshot(
+                Request::builder()
+                    .uri("/health")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(health.status(), StatusCode::OK);
+    }
+
+    #[tokio::test]
+    async fn mutation_flood_does_not_throttle_a_different_forwarded_client() {
+        let service = test_service().await;
+        let mut requests = tokio::task::JoinSet::new();
+        for _ in 0..60 {
+            let request_service = service.clone();
+            requests.spawn(async move {
+                request_service
+                    .oneshot(
+                        Request::builder()
+                            .method("POST")
+                            .uri("/api/lessons")
+                            .header("content-type", "application/json")
+                            .header("x-forwarded-for", "198.51.100.20")
+                            .body(Body::from("{}"))
+                            .unwrap(),
+                    )
+                    .await
+                    .unwrap()
+            });
+        }
+
+        let mut limited = false;
+        while let Some(response) = requests.join_next().await {
+            if response.unwrap().status() == StatusCode::TOO_MANY_REQUESTS {
+                limited = true;
+            }
+        }
+        assert!(limited, "a mutation burst must be throttled");
+
+        let other_client = service
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/api/lessons")
+                    .header("content-type", "application/json")
+                    .header("x-forwarded-for", "203.0.113.99")
+                    .body(Body::from("{}"))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(other_client.status(), StatusCode::UNPROCESSABLE_ENTITY);
     }
 
     #[tokio::test]

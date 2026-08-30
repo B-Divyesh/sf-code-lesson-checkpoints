@@ -75,3 +75,4 @@ One generated landscape hero, displayed beside the public product explanation an
 - Generated specifically for this product with Azure OpenAI deployment `factory-image` via `/opt/fleet/lib/gen-image.sh` on 2026-08-28.
 - Prompt is recorded verbatim in `assets/src/hero-paper-path.json`; generated output is original project artwork. No third-party visual assets are used.
 - Production derivatives are encoded locally as WebP/AVIF with a PNG source retained for provenance and review.
+- The 1200×630 social card is a center crop of the same original artwork. The 180 px touch icon is rendered from the hand-authored project favicon.

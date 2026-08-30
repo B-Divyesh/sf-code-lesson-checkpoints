@@ -7,9 +7,12 @@ COPY extension ./extension
 COPY public ./public
 RUN npm ci && npm run build
 
-FROM rust:1.98-bookworm AS backend
+FROM rust:1-slim-bookworm AS backend
 ARG BUILD_SHA=dev
 WORKDIR /build
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends build-essential pkg-config \
+    && rm -rf /var/lib/apt/lists/*
 COPY Cargo.toml Cargo.lock ./
 COPY migrations ./migrations
 COPY src ./src

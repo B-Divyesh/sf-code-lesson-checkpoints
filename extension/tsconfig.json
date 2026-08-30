@@ -10,5 +10,6 @@
     "outDir": "dist",
     "types": ["node", "vscode"]
   },
-  "include": ["src"]
+  "include": ["src"],
+  "exclude": ["src/**/*.test.ts"]
 }

@@ -42,7 +42,9 @@ Configuration is environment-only:
 ```bash
 npm test             # Vitest privacy helpers + Rust unit/API flow tests
 npm run check        # strict TypeScript checks, including the extension
+npm run lint         # TypeScript, Rust formatting, and Clippy
 npm run build
+npm run test:package # package and inspect the VS Code extension consumer
 docker build -t code-lesson-checkpoints .
 docker run --rm -p 8080:8080 -v clc-data:/data code-lesson-checkpoints
 ```
@@ -61,7 +63,9 @@ The generated hero illustration is original project artwork; prompt and provenan
 
 ## Deployment
 
-The multi-stage Dockerfile compiles both frontend and Rust service, runs as a non-root user on port 8080, and keeps SQLite under `/data`. Because SQLite is a single-writer store, [`deployment/container-app.json`](deployment/container-app.json) requires exactly one replica and a durable Azure Files mount at `/data`; the deployed URL selects SQLite's lock-file VFS for that network mount. After the factory creates or updates the container app, `scripts/apply-deployment-contract.sh` applies and verifies that product-specific topology. `BASE_URL=https://code-lesson-checkpoints.sociobot.in EXPECTED_BUILD_SHA=<commit> npm run test:coherence` checks the full workflow over fresh connections. DNS, storage provisioning, and billing registration remain factory-managed outside this repository.
+The multi-stage Dockerfile compiles both frontend and Rust service, runs as a non-root user on port 8080, and keeps SQLite under `/data`. Because SQLite is a single-writer store, [`deployment/container-app.json`](deployment/container-app.json) requires one active revision, one replica, and a durable Azure Files mount at `/data`; the deployed URL selects SQLite's lock-file VFS for that network mount. API reads are capped per client, and writes use a stricter per-client allowance. Rate-limit responses include `Retry-After`.
+
+The only release command is `scripts/deploy-release.sh <full-commit-sha>`. It builds the immutable image, repairs deployment drift before creating a persistence canary, updates the image, reapplies and reads back the topology, checks `/health`, verifies the canary through fresh connections, and runs the full coherence lifecycle. `BASE_URL=https://code-lesson-checkpoints.sociobot.in EXPECTED_BUILD_SHA=<commit> npm run test:coherence` can repeat the lifecycle independently. DNS, storage provisioning, and billing registration remain factory-managed outside this repository.
 
 ## License
 

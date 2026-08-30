@@ -7,7 +7,7 @@ const expectedBuild = process.env.EXPECTED_BUILD_SHA;
 const execFile = promisify(execFileCallback);
 let created;
 
-async function request(path, init = {}) {
+async function request(path, init = {}, attempt = 0) {
   // A separate HTTP/1.1 curl process for every request prevents a sticky
   // browser/connection route from hiding per-replica SQLite partitions.
   const args = ['--silent', '--show-error', '--http1.1', '--no-keepalive', '--request', init.method ?? 'GET'];
@@ -17,7 +17,15 @@ async function request(path, init = {}) {
   const { stdout } = await execFile('curl', args, { maxBuffer: 1024 * 1024 });
   const separator = stdout.lastIndexOf('\n');
   assert.ok(separator >= 0, 'curl response includes an HTTP status marker');
-  return { status: Number(stdout.slice(separator + 1)), body: stdout.slice(0, separator) };
+  const response = { status: Number(stdout.slice(separator + 1)), body: stdout.slice(0, separator) };
+  if (response.status === 429 && attempt < 3) {
+    // This suite verifies replica/storage coherence, not limiter capacity.
+    // Respect the server policy and retry through a new connection so a
+    // legitimate long lifecycle does not become its own load test.
+    await new Promise((resolve) => setTimeout(resolve, 1_050));
+    return request(path, init, attempt + 1);
+  }
+  return response;
 }
 
 async function json(response) {

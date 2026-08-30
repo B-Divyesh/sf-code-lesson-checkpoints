@@ -5,6 +5,10 @@
   "version": "0.1.0",
   "publisher": "sociobot",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/B-Divyesh/sf-code-lesson-checkpoints.git"
+  },
   "engines": { "vscode": "^1.98.0" },
   "categories": ["Education", "Testing"],
   "activationEvents": ["onCommand:codeLesson.connect", "onCommand:codeLesson.open"],
@@ -27,5 +31,5 @@
     }
   },
   "scripts": { "build": "tsc -p tsconfig.json" },
-  "files": ["dist", "README.md", "package.json"]
+  "files": ["dist", "README.md", "LICENSE", "package.json"]
 }
