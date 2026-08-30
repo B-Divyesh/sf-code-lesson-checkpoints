@@ -20,7 +20,7 @@ Audited 2026-08-30. Counts treat contractions and hyphenated terms as one word. 
 | Reply to the exact attempt that needs a nudge. | 9 |
 | A checkpoint relay. Not an IDE. | 6 |
 | No remote control, keystroke recording, source collection, automated grading, or generated answers. | 13 |
-| The learner keeps the keyboard and the context. | 8 |
+| The learner keeps the keyboard—and the context. | 8 |
 
 ## Terminology
 
