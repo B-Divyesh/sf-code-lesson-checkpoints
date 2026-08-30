@@ -1,38 +1,78 @@
-# Verification handoff — FAIL
+# Repair handoff — PASS
 
-**Work order:** `code-lesson-checkpoints-verify-8`
-
-**Candidate:** `bb09ce478e089a81e4836cdab24758514d5fb7c2`
-
-**Live URL:** https://code-lesson-checkpoints.sociobot.in
-
-**Full report:** `.factory/verification-8.md`
+**Work order:** `code-lesson-checkpoints-repair-8`
+**Released candidate:** `85f1e51fac14b2a01d8da25ef34fd850d42c4a5e`
+**Public URL:** `https://code-lesson-checkpoints.sociobot.in`
+**Verified:** 2026-08-30 UTC
 
 ## Result
 
-**FAIL. Do not release.** The candidate source and image pass locally, but the candidate is not serving publicly and the deployed storage/topology contract is unsafe.
+**PASS.** The public service now serves the repaired candidate from one healthy
+replica with the product-owned `/data` SQLite mount. The stale application
+connection setting was removed by replacing the full environment with `PORT`
+only; its previous value was never read.
 
-## Blocking evidence
+## Repairs
 
-- Public `/health` returns old build `6d49b4a6a9e0158369d007cededde4e6cc6ce44e`.
-- The allowed `sf-code-lesson-checkpoints` app still has an environment variable named `DATABASE_URL`; its value was not read.
-- Healthy revision `0000020` runs three replicas without `/data` mounted.
-- Candidate revision `0000021` has one `/data`-mounted replica but is unhealthy and restart-looping. Its logs show SQLite `database is locked` during WAL setup.
-- Live `npm run test:e2e` fails after lesson creation because the learner view cannot load the runnable checkpoint.
-- Fresh-connection coherence against the old served build returned 21 successful reads and 9 server errors out of 30.
-- Public roster/history/permanent-delete claims are not fully represented in `.factory/claims.json`.
+- Reproduced the original connection-time failure: a held SQLite exclusive
+  lock makes `PRAGMA journal_mode=WAL` return `database is locked`.
+- Removed WAL setup from the connection path. Startup uses SQLite's
+  `unix-none` VFS only in the enforced single-writer topology, then uses the
+  rollback `DELETE` journal rather than WAL on Azure Files.
+- Added the exact Rust regression
+  `azure_files_lock_does_not_kill_startup_during_wal_configuration_regression`.
+  It proves the former WAL configuration fails under the synthetic lock while
+  the repaired connection opens and the replacement writer migrates after the
+  lock is released.
+- Made the deployment contract replace the complete application environment
+  with `PORT=8080`, deactivate stale mounted revisions before starting a new
+  candidate, and retire all older active revisions once the candidate is
+  ready.
+- Added claim coverage for the searchable Team roster/local lesson history and
+  permanent deletion of a lesson, its checkpoints, evidence, and replies.
 
-## What passed
+## Local verification
 
-- All six exact claim tests pass against the exact-SHA local release binary.
-- `npm test`, `npm run check`, `npm run lint`, exact production web and release builds, local browser/PWA tests, extension packaging, load smoke, and four-cycle local coherence pass.
-- Candidate source and image contain no prohibited resource name, `DATABASE_URL`, PostgreSQL URL/driver, or `libpq`. The image is non-root and embeds the full candidate SHA.
-- Exact candidate HTML/JS/CSS match the registry image; manifest digest is `sha256:0b6007a13d059742b4d25596e206327189357fb6bda09a4212c2d4f5716563d0`.
-- An isolated UID 999 test created SQLite at `/data/checkpoints.db`, stopped/restarted the exact candidate binary, read the same lesson, and deleted it. Synthetic `/data` files were removed afterward.
-- Live cold first-read, one-click demo, PWA offline reload, route semantics, keyboard focus, reduced motion, same-origin privacy log, security headers, and accessibility pass. Axe found no serious/critical issues.
-- Lighthouse mobile: 100/100/100/100; LCP 1.455 s, CLS 0.0060, TBT 0 ms, 110,358 bytes.
-- Product API throttles return `429` plus `Retry-After: 1`; Sociobot license verification showed a 30-request burst and `Retry-After: 4`.
+- `npm ci` — PASS (112 packages, 0 vulnerabilities).
+- `npm test` — PASS (12 TypeScript/Vitest assertions; 13 Rust tests).
+- `npm run check` and `npm run lint` — PASS (strict TypeScript, rustfmt,
+  Clippy with warnings denied).
+- `npm run build` — PASS; `dist/` emitted. Initial JS is 42.92 kB raw /
+  13.85 kB gzip and CSS is 28.77 kB raw / 6.87 kB gzip.
+- `BUILD_SHA=85f1e51fac14b2a01d8da25ef34fd850d42c4a5e cargo build --release`
+  — PASS.
+- `npm run test:package` — PASS; VSIX packaged and consumer syntax checked.
+- Local `npm run test:claims`, `npm run test:e2e`, `npm run test:pwa`,
+  `npm run test:load`, and `COHERENCE_CYCLES=4 npm run test:coherence` — PASS.
+  The load smoke completed 200 health requests at 677 requests/second. The
+  browser suite covers desktop and 390 px mobile, keyboard forms/dialogs,
+  focus, reduced motion, no console errors, privacy requests, and serious or
+  critical axe findings.
 
-## Next action
+## Live verification
 
-Remove the stale connection setting, resolve the SQLite mount lock, and make the candidate the only healthy serving replica with `/data` mounted. Then rerun the full candidate identity, four-cycle coherence, revision-restart persistence, live E2E, and claims-coverage checks. Do not use or inspect any other service or shared data resource.
+- `GET /health` returned
+  `{"build":"85f1e51fac14b2a01d8da25ef34fd850d42c4a5e","status":"ok"}`.
+- Product app/revision readback: revision `sf-code-lesson-checkpoints--0000024`
+  is the sole active, healthy `RunningAtMaxScale` revision; its template has
+  one `/data` mount, `minReplicas: 1`, `maxReplicas: 1`, and environment name
+  `PORT` only. The settled replica list count is `1`.
+- Live persistence canary: created a synthetic lesson, restarted revision
+  `0000024`, read it as learner (`200`) and tutor (`200`), then authorized
+  deletion (`204`). The synthetic record was removed.
+- `BASE_URL=https://code-lesson-checkpoints.sociobot.in`
+  `EXPECTED_BUILD_SHA=85f1e51fac14b2a01d8da25ef34fd850d42c4a5e`
+  `COHERENCE_CYCLES=4 npm run test:coherence` — PASS.
+- Live `npm run test:e2e`, `npm run test:pwa`, `npm run test:claims`, and
+  `npm run test:load` — PASS. All eight listed claims passed; the live load
+  smoke completed 200 health requests at 351 requests/second.
+- Factory `verify-url.sh` — PASS: HTTP 200, 605 ms load, no console errors,
+  `lang=en`, one h1, main landmark, and no missing image alt text. Response
+  headers include CSP with `frame-ancestors 'none'`, `nosniff`, and strict
+  origin referrer policy.
+
+## Known gaps and next steps
+
+None. The historical failed verification remains in
+`.factory/verification-8.md` as the original independent report; this handoff
+records the repair evidence.
