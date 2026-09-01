@@ -644,6 +644,10 @@ function route(): void {
   }
   const path = location.pathname.replace(/\/+$/, '') || '/';
   const demoQuery = path === '/' && new URLSearchParams(location.search).get('demo') === '1';
+  const canonicalPath = demoQuery ? '/demo' : path;
+  const canonicalUrl = `https://code-lesson-checkpoints.sociobot.in${canonicalPath === '/' ? '/' : canonicalPath}`;
+  document.querySelector<HTMLLinkElement>('link[rel="canonical"]')?.setAttribute('href', canonicalUrl);
+  document.querySelector<HTMLMetaElement>('meta[property="og:url"]')?.setAttribute('content', canonicalUrl);
   if (demoQuery) void demoPage();
   else if (path === '/') home();
   else if (path === '/demo') void demoPage();

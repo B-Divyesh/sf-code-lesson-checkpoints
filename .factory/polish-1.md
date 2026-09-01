@@ -61,4 +61,11 @@ Local screenshots: `.factory/evidence/polish-1/home-mobile.png`, `home-desktop.p
 - `npm run test:pwa`: update and offline sample reload passed.
 - `npm run test:load`: 200 health requests at 566 requests/second.
 
-Live verification is recorded in `.factory/handoff.md` after deployment.
+## Live verification
+
+- <https://code-lesson-checkpoints.sociobot.in> returned the corrected first screen, metadata, legal links, and installable VSIX.
+- <https://code-lesson-checkpoints.sociobot.in/?demo=1> opened the isolated populated sample with its banner, reset, and exit controls.
+- All 12 claim commands passed independently against the live URL.
+- The release persistence check passed four fresh create/read/submit/reply/delete cycles.
+- The worker URL verifier reported no console errors and complete title/lang/main/image-alt basics.
+- Live Lighthouse scored 100 performance, 100 accessibility, 100 best practices, and 100 SEO.
