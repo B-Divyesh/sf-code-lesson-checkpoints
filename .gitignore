@@ -9,6 +9,7 @@ node_modules/
 dist/
 target/
 extension/dist/
+public/downloads/
 checkpoints.db*
 .DS_Store
 playwright-report/

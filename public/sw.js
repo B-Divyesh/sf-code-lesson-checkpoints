@@ -1,4 +1,4 @@
-const CACHE = 'clc-shell-v3';
+const CACHE = 'clc-shell-v4';
 const SHELL = ['/', '/demo', '/join', '/new', '/pricing', '/team', '/privacy', '/terms'];
 
 self.addEventListener('install', (event) => {

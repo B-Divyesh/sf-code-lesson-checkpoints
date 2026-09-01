@@ -11,6 +11,7 @@ const PRODUCT_SLUG = 'code-lesson-checkpoints';
 const BILLING_BASE = 'https://api.sociobot.in/api/v1';
 const DEMO_STORAGE_KEY = 'demo:clc:workspace';
 const app = document.querySelector<HTMLDivElement>('#app')!;
+let routeFocusRequested = false;
 
 type ApiError = Error & { status?: number };
 type ArchivedLesson = { id: string; title: string; learnerName: string; shareCode: string; tutorToken: string; createdAt: string };
@@ -47,10 +48,11 @@ function shell(content: string, options: { compact?: boolean; current?: string; 
       </nav>
     </header>
     ${options.demo ? `<aside class="demo-banner" aria-label="Sample-data demo"><div><strong>Demo — sample data, nothing is saved</strong><span>Use the tutor view without changing a real lesson.</span></div><div><button type="button" id="reset-demo">Reset demo</button><button type="button" id="start-real">Start for real</button></div></aside>` : ''}
+    <div id="route-announcer" class="visually-hidden" role="status" aria-live="polite"></div>
     <main id="main" class="${options.compact ? 'main compact' : 'main'}">${content}</main>
     <footer>
-      <p><strong>Code Lesson Checkpoints</strong><br><span>Execution evidence, shared by the learner.</span></p>
-      <nav aria-label="Legal"><a href="/privacy">Privacy</a><a href="/terms">Terms</a><a href="https://github.com/B-Divyesh/sf-code-lesson-checkpoints">Source</a></nav>
+      <p><strong>Code Lesson Checkpoints</strong><br><span>Learners choose which run results to share.</span></p>
+      <nav aria-label="Legal"><a href="/privacy">Privacy</a><a href="/terms">Terms</a><a href="https://github.com/B-Divyesh/sf-code-lesson-checkpoints">Source on GitHub (external)</a></nav>
       <p class="made-note">Paper-path artwork generated for this product. No source code is uploaded by default.<br>Built by Param Factory · Version 0.1.0 (${escapeHtml(__BUILD_SHA__.slice(0, 12))})</p>
     </footer>
     <div id="toast" class="toast" role="status" aria-live="polite"></div>
@@ -62,7 +64,7 @@ async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
   try {
     response = await fetch(path, { ...init, headers: { 'Content-Type': 'application/json', ...init.headers } });
   } catch {
-    const error = new Error('Could not reach the checkpoint relay. Check your connection and try again.') as ApiError;
+    const error = new Error('Could not reach the lesson service. Check your connection and try again.') as ApiError;
     error.status = 0;
     throw error;
   }
@@ -84,16 +86,36 @@ function announce(message: string): void {
   window.setTimeout(() => toast.classList.remove('shown'), 3600);
 }
 
+function finishRoute(description: string, canonicalPath = location.pathname): void {
+  const canonicalUrl = `https://code-lesson-checkpoints.sociobot.in${canonicalPath === '/' ? '/' : canonicalPath.replace(/\/+$/, '')}`;
+  document.querySelector<HTMLLinkElement>('link[rel="canonical"]')?.setAttribute('href', canonicalUrl);
+  document.querySelector<HTMLMetaElement>('meta[property="og:url"]')?.setAttribute('content', canonicalUrl);
+  for (const selector of ['meta[name="description"]', 'meta[property="og:description"]', 'meta[name="twitter:description"]']) {
+    document.querySelector<HTMLMetaElement>(selector)?.setAttribute('content', description);
+  }
+  document.querySelector<HTMLMetaElement>('meta[property="og:title"]')?.setAttribute('content', document.title);
+  document.querySelector<HTMLMetaElement>('meta[name="twitter:title"]')?.setAttribute('content', document.title);
+  const heading = document.querySelector<HTMLHeadingElement>('main h1');
+  heading?.setAttribute('tabindex', '-1');
+  if (routeFocusRequested && heading) {
+    heading.focus({ preventScroll: true });
+    const announcer = document.querySelector<HTMLElement>('#route-announcer');
+    if (announcer) announcer.textContent = `Page changed: ${heading.textContent?.trim() ?? document.title}`;
+    routeFocusRequested = false;
+  }
+  bindConnectivity();
+}
+
 function home(): void {
-  document.title = 'Code Lesson Checkpoints — Share runnable milestones';
+  document.title = 'Code Lesson Checkpoints — See where learners get stuck';
   app.innerHTML = shell(`
     <section class="hero">
       <div class="hero-copy">
-        <p class="eyebrow"><span></span>Learner-owned evidence</p>
+        <p class="eyebrow"><span></span>Learners choose what to share</p>
         <h1>See where the lesson got <em>stuck.</em></h1>
-        <p class="lede">Remote programming tutors define runnable checkpoints. Learners run them locally and choose what evidence to share.</p>
-        <div class="hero-actions"><a class="button primary" href="/demo">Try it with sample data ${icon('run')}</a><a class="button secondary" href="/new">Plan a lesson</a><a class="text-link" href="/join">I have a lesson code <span aria-hidden="true">→</span></a></div>
-        <ul class="trust-row" aria-label="Privacy promises"><li>${icon('lock')} No source uploads</li><li>${icon('check')} Output reviewed first</li><li>${icon('mark')} Free for one pair</li></ul>
+        <p class="lede">Remote programming tutors add commands or tests for each lesson step. Learners run them locally and choose what to share.</p>
+        <div class="hero-actions"><div class="primary-action"><a class="button primary" href="/?demo=1">Try it with sample data ${icon('run')}</a><small>Opens Sam’s three-checkpoint lesson in a temporary demo.</small></div><a class="button secondary" href="/new">Plan a lesson</a><a class="text-link" href="/join">Join with a lesson code <span aria-hidden="true">→</span></a></div>
+        <ul class="trust-row" aria-label="Product facts"><li>${icon('lock')} No source uploads</li><li>${icon('check')} Learners review output before sharing</li><li>${icon('mark')} Free lesson planning</li></ul>
       </div>
       <figure class="hero-art paper-layer">
         <picture>
@@ -105,25 +127,26 @@ function home(): void {
       </figure>
     </section>
     <section class="process" aria-labelledby="process-title">
-      <div><p class="eyebrow"><span></span>The lesson trail</p><h2 id="process-title">A record of the work,<br>not a recording of the learner.</h2></div>
+      <div><p class="eyebrow"><span></span>How it works</p><h2 id="process-title">A record of the work,<br>not a recording of the learner.</h2></div>
       <ol>
-        <li><span class="step-number">1</span><div><h3>Mark the milestones</h3><p>Add the shell commands or tests that define progress. The learner can copy them into their own terminal.</p></div></li>
-        <li><span class="step-number">2</span><div><h3>Learner runs & reviews</h3><p>They choose Passed or Blocked, review automatic secret redaction, and consent before anything leaves their machine.</p></div></li>
-        <li><span class="step-number">3</span><div><h3>Respond at the first snag</h3><p>Read the selected output and reflection in sequence. Reply to the exact attempt that needs a nudge.</p></div></li>
+        <li><span class="step-number">1</span><div><h3>Add checkpoints</h3><p>Add the commands or tests that define progress. Learners can copy them into their own terminal.</p></div></li>
+        <li><span class="step-number">2</span><div><h3>Run and review</h3><p>Learners choose Passed or Blocked. They check hidden passwords and keys, then approve what leaves their computer.</p><a href="/downloads/code-lesson-checkpoints-0.1.0.vsix" download>Install the VS Code companion</a></div></li>
+        <li><span class="step-number">3</span><div><h3>Reply to the blocked attempt</h3><p>Read the selected output and note in order. Reply to the exact attempt that needs help.</p></div></li>
       </ol>
     </section>
     <section class="boundary" aria-labelledby="boundary-title">
-      <div class="boundary-tag">Built-in boundary</div><h2 id="boundary-title">A checkpoint relay. Not an IDE.</h2>
+      <div class="boundary-tag">What this tool does not do</div><h2 id="boundary-title">Share lesson results, not source code.</h2>
       <p>No remote control, keystroke recording, source collection, automated grading, or generated answers. The learner keeps the keyboard—and the context.</p>
       <a class="button paper-button" href="/new">Create your first lesson</a>
     </section>`);
+  finishRoute('Remote programming tutors add lesson steps. Learners run them locally and choose which results to share.', '/');
 }
 
 const checkpointTemplate = (index: number, values?: { title?: string; command?: string; hint?: string }) => `
   <fieldset class="checkpoint-editor" data-checkpoint>
     <legend><span class="step-number">${index + 1}</span> Checkpoint ${index + 1}</legend>
     <button class="remove-checkpoint icon-button" type="button" aria-label="Remove checkpoint ${index + 1}" title="Remove checkpoint">×</button>
-    <label>Milestone name <input name="checkpoint-title" maxlength="100" required value="${escapeHtml(values?.title ?? '')}" placeholder="Tests pass"></label>
+    <label>Checkpoint name <input name="checkpoint-title" maxlength="100" required value="${escapeHtml(values?.title ?? '')}" placeholder="Tests pass"></label>
     <label>Command the learner runs <input class="command-input" name="checkpoint-command" maxlength="500" required value="${escapeHtml(values?.command ?? '')}" placeholder="npm test" spellcheck="false"></label>
     <label>What success looks like <input name="checkpoint-hint" maxlength="300" value="${escapeHtml(values?.hint ?? '')}" placeholder="All 12 tests pass"></label>
   </fieldset>`;
@@ -131,19 +154,20 @@ const checkpointTemplate = (index: number, values?: { title?: string; command?: 
 function newLesson(): void {
   document.title = 'Plan a lesson — Code Lesson Checkpoints';
   app.innerHTML = shell(`
-    <section class="form-intro"><p class="eyebrow"><span></span>Tutor setup · about 2 minutes</p><h1>Mark the path through<br>your next lesson.</h1><p>Define only the runnable milestones. Commands are shown to the learner, never run by this server.</p></section>
+    <section class="form-intro"><p class="eyebrow"><span></span>Tutor setup · about 2 minutes</p><h1>Plan your next<br>code lesson.</h1><p>Add the commands or tests for each lesson step. The server shows them but never runs them.</p></section>
     <form id="lesson-form" class="lesson-form">
       <div class="form-section"><h2>Lesson details</h2><div class="two-fields"><label>Lesson title <input name="title" maxlength="100" required autofocus placeholder="Debugging the weather API"></label><label>Learner name <span class="optional">Optional</span><input name="learnerName" maxlength="80" placeholder="Sam"></label></div></div>
-      <div class="form-section"><div class="section-heading"><div><h2>Runnable checkpoints</h2><p>Use commands that are safe to run from the project folder.</p></div><button type="button" class="button secondary" id="add-checkpoint">+ Add checkpoint</button></div><div id="checkpoint-list">${checkpointTemplate(0, { title: 'Run the starter tests', command: 'npm test', hint: 'The test runner starts and shows the current failures' })}${checkpointTemplate(1, { title: 'Verify the fix', command: 'npm test', hint: 'All tests pass' })}</div></div>
+      <div class="form-section"><div class="section-heading"><div><h2>Lesson checkpoints</h2><p>Use commands that are safe to run from the project folder.</p></div><button type="button" class="button secondary" id="add-checkpoint">+ Add checkpoint</button></div><div id="checkpoint-list">${checkpointTemplate(0, { title: 'Run the starter tests', command: 'npm test', hint: 'The test runner starts and shows the current failures' })}${checkpointTemplate(1, { title: 'Verify the fix', command: 'npm test', hint: 'All tests pass' })}</div></div>
       <aside class="privacy-note">${icon('lock')}<div><strong>Share the command, not the project.</strong><p>Learners run commands locally. Only their selected status, output, and optional note enter the lesson record.</p></div></aside>
       <div id="form-error" class="form-error" role="alert"></div>
-      <button class="button primary submit-button" type="submit">Create lesson path ${icon('run')}</button>
+      <button class="button primary submit-button" type="submit">Create lesson ${icon('run')}</button>
     </form>`, { compact: true });
 
   const list = document.querySelector<HTMLDivElement>('#checkpoint-list');
   const add = document.querySelector<HTMLButtonElement>('#add-checkpoint');
   const form = document.querySelector<HTMLFormElement>('#lesson-form');
   if (!list || !add || !form) return;
+  finishRoute('Add commands or tests for a learner to run and share during a remote programming lesson.', '/new');
   const renumber = () => {
     [...list.querySelectorAll<HTMLElement>('[data-checkpoint]')].forEach((item, index) => {
       const legend = item.querySelector('legend');
@@ -200,9 +224,10 @@ function join(): void {
   document.title = 'Join a lesson — Code Lesson Checkpoints';
   app.innerHTML = shell(`
     <section class="join-sheet paper-layer">
-      <p class="eyebrow"><span></span>Learner entrance</p><h1>Pick up your<br>lesson path.</h1><p>Your tutor’s six-character code opens the checkpoints. You decide what output to share.</p>
+      <p class="eyebrow"><span></span>Learner access</p><h1>Open your<br>code lesson.</h1><p>Your tutor’s six-character code opens the checkpoints. You decide what output to share.</p>
       <form id="join-form"><label for="share-code">Lesson code</label><div class="code-entry"><input id="share-code" name="code" inputmode="text" autocomplete="off" autocapitalize="characters" maxlength="7" required aria-describedby="code-help" placeholder="ABC123"><button class="button primary" type="submit">Open lesson ${icon('run')}</button></div><p id="code-help" class="field-help">Letters and numbers only. Dashes and spaces are ignored.</p><p id="join-error" class="form-error" role="alert"></p></form>
-      <div class="join-privacy">${icon('lock')} <span><strong>You stay in control.</strong> Checkpoints cannot see your files, terminal, or screen. Only the evidence you submit is shared.</span></div>
+      <p><a class="button secondary" href="/downloads/code-lesson-checkpoints-0.1.0.vsix" download>Install the VS Code companion</a></p>
+      <div class="join-privacy">${icon('lock')} <span><strong>You stay in control.</strong> Checkpoints cannot see your files, terminal, or screen. Only the results you submit are shared.</span></div>
     </section>`, { compact: true, current: 'join' });
   const form = document.querySelector<HTMLFormElement>('#join-form');
   const input = document.querySelector<HTMLInputElement>('#share-code');
@@ -217,6 +242,7 @@ function join(): void {
     }
     location.assign(`/join/${code}`);
   });
+  finishRoute('Enter a six-character lesson code to open checkpoints from your tutor.', '/join');
 }
 
 function statusFor(checkpoint: Checkpoint): 'passed' | 'blocked' | 'waiting' {
@@ -232,9 +258,9 @@ function statusLabel(status: 'passed' | 'blocked' | 'waiting'): string {
 function submissionMarkup(submission: Submission, role: 'tutor' | 'learner'): string {
   return `<article class="attempt">
     <div class="attempt-meta"><span class="status ${submission.status}">${statusLabel(submission.status)}</span><time datetime="${escapeHtml(submission.createdAt)}">${formatDate(submission.createdAt)}</time></div>
-    ${submission.output ? `<div><h4>Selected output</h4><pre><code>${escapeHtml(submission.output)}</code></pre></div>` : '<p class="muted">No terminal output was included.</p>'}
-    ${submission.note ? `<div><h4>Learner note</h4><p class="learner-note">${escapeHtml(submission.note)}</p></div>` : ''}
-    ${submission.teacherReply ? `<div class="teacher-reply">${icon('reply')}<div><h4>Tutor reply</h4><p>${escapeHtml(submission.teacherReply)}</p></div></div>` : role === 'tutor' ? `<form class="reply-form" data-submission="${escapeHtml(submission.id)}"><label>Reply to this attempt <textarea name="reply" maxlength="2000" required placeholder="Point to the next thing to inspect—without giving away the keyboard."></textarea></label><button class="button small secondary" type="submit">Send reply ${icon('reply')}</button><span class="inline-error" role="alert"></span></form>` : '<p class="muted reply-waiting">Tutor reply pending.</p>'}
+    ${submission.output ? `<div><h3>Selected output</h3><pre><code>${escapeHtml(submission.output)}</code></pre></div>` : '<p class="muted">No terminal output was included.</p>'}
+    ${submission.note ? `<div><h3>Learner note</h3><p class="learner-note">${escapeHtml(submission.note)}</p></div>` : ''}
+    ${submission.teacherReply ? `<div class="teacher-reply">${icon('reply')}<div><h3>Tutor reply</h3><p>${escapeHtml(submission.teacherReply)}</p></div></div>` : role === 'tutor' ? `<form class="reply-form" data-submission="${escapeHtml(submission.id)}"><label>Reply to this attempt <textarea name="reply" maxlength="2000" required placeholder="Point to the next thing to inspect—without giving away the keyboard."></textarea></label><button class="button small secondary" type="submit">Send reply ${icon('reply')}</button><span class="inline-error" role="alert"></span></form>` : '<p class="muted reply-waiting">Tutor reply pending.</p>'}
   </article>`;
 }
 
@@ -261,7 +287,7 @@ function evidenceDialogs(checkpoints: Checkpoint[]): string {
       <label>Selected terminal output <span class="optional">Optional · max 8,000 characters</span><textarea class="output-input" name="output" maxlength="12000" rows="7" spellcheck="false" placeholder="Paste the useful lines—not the whole session."></textarea></label>
       <div class="redaction-preview" aria-live="polite">Nothing pasted. No output will be shared.</div>
       <label>What do you think is happening? <span class="optional">Optional</span><textarea name="note" maxlength="1000" rows="3" placeholder="I expected… but I noticed…"></textarea></label>
-      <label class="consent"><input type="checkbox" name="consented" required><span>I reviewed this evidence and agree to share it with my tutor. No source files are attached.</span></label>
+      <label class="consent"><input type="checkbox" name="consented" required><span>I reviewed these results and agree to share them with my tutor. No source files are attached.</span></label>
       <p class="inline-error" role="alert"></p><button class="button primary" type="submit">Share this run ${icon('run')}</button>
     </form>
   </dialog>`).join('');
@@ -280,15 +306,16 @@ async function lessonPage(role: 'tutor' | 'learner', key: string): Promise<void>
   }
   const token = role === 'tutor' ? localStorage.getItem(`clc:tutor:${key}`) : null;
   document.title = 'Loading lesson — Code Lesson Checkpoints';
-  app.innerHTML = shell('<section class="loading-state" aria-live="polite"><div class="paper-spinner"></div><h1>Opening the lesson path…</h1><p>Loading only the shared checkpoint record.</p></section>');
+  app.innerHTML = shell('<section class="loading-state" aria-live="polite"><div class="paper-spinner"></div><h1>Opening the lesson…</h1><p>Loading only the shared checkpoint record.</p></section>');
   try {
     const lesson = await api<Lesson>(role === 'tutor' ? `/api/tutor/lessons/${encodeURIComponent(key)}` : `/api/lessons/code/${encodeURIComponent(key)}`, role === 'tutor' ? { headers: { Authorization: `Bearer ${token ?? ''}` } } : {});
     renderLesson(lesson, role, token);
   } catch (cause) {
     const message = cause instanceof Error ? cause.message : 'The lesson could not be opened.';
     document.title = 'Lesson unavailable — Code Lesson Checkpoints';
-    app.innerHTML = shell(`<section class="error-state paper-layer"><span class="error-mark">!</span><h1>This path is out of reach.</h1><p>${escapeHtml(message)}</p><div><button class="button primary" type="button" id="retry">Try again</button><a class="text-link" href="${role === 'tutor' ? '/new' : '/join'}">${role === 'tutor' ? 'Plan a new lesson' : 'Check another code'}</a></div></section>`);
+    app.innerHTML = shell(`<section class="error-state paper-layer"><span class="error-mark">!</span><h1>Lesson unavailable</h1><p>${escapeHtml(message)}</p><div><button class="button primary" type="button" id="retry">Try again</button><a class="text-link" href="${role === 'tutor' ? '/new' : '/join'}">${role === 'tutor' ? 'Plan a new lesson' : 'Check another code'}</a></div></section>`);
     document.querySelector('#retry')?.addEventListener('click', () => void lessonPage(role, key));
+    finishRoute('The requested lesson could not be opened. Check the private link or lesson code.');
   }
 }
 
@@ -304,21 +331,22 @@ function renderLesson(lesson: Lesson, role: 'tutor' | 'learner', token: string |
       <div><p class="eyebrow"><span></span>${role === 'tutor' ? 'Tutor view · private link' : 'Learner view · shared record'}</p><h1>${escapeHtml(lesson.title)}</h1><p>${lesson.learnerName ? `${escapeHtml(lesson.learnerName)}’s lesson` : 'Pair lesson'} · ${lesson.checkpoints.length} checkpoints</p></div>
       <div class="lesson-actions">${role === 'tutor' ? `<button class="button secondary" id="export-lesson" type="button">Export record</button><button class="button secondary" type="button" data-copy="${escapeHtml(learnerUrl)}">${icon('copy')} Copy learner link</button>` : ''}<button class="icon-button refresh" id="refresh" type="button" aria-label="Refresh lesson" title="Refresh lesson">↻</button></div>
     </section>
-    ${created && role === 'tutor' ? `<section class="share-strip" aria-label="Lesson created"><div>${icon('check')}<p><strong>Your lesson path is ready.</strong><br>Give the learner this code or copy their link.</p></div><code>${escapeHtml(lesson.shareCode)}</code><button class="button paper-button" type="button" data-copy="${escapeHtml(learnerUrl)}">Copy link ${icon('copy')}</button></section>` : ''}
+    ${created && role === 'tutor' ? `<section class="share-strip" aria-label="Lesson created"><div>${icon('check')}<p><strong>Your lesson is ready.</strong><br>Give the learner this code or copy their link.</p></div><code>${escapeHtml(lesson.shareCode)}</code><button class="button paper-button" type="button" data-copy="${escapeHtml(learnerUrl)}">Copy link ${icon('copy')}</button></section>` : ''}
     <div class="lesson-layout">
       <aside class="lesson-rail">
         <div class="progress-ring" aria-label="${completed} of ${lesson.checkpoints.length} checkpoints passed"><strong>${completed}/${lesson.checkpoints.length}</strong><span>passed</span></div>
-        <div><h2>Lesson pulse</h2>${blocked ? `<p class="pulse-blocked">${icon('block')} First block at checkpoint ${blocked.position}</p><a href="#checkpoint-${escapeHtml(blocked.id)}">Jump to the snag →</a>` : completed === lesson.checkpoints.length ? `<p class="pulse-passed">${icon('check')} All checkpoints passed</p>` : '<p>Waiting for the next learner-run update.</p>'}</div>
+        <div><h2>Lesson status</h2>${blocked ? `<p class="pulse-blocked">${icon('block')} First block at checkpoint ${blocked.position}</p><a href="#checkpoint-${escapeHtml(blocked.id)}">Open the blocked checkpoint →</a>` : completed === lesson.checkpoints.length ? `<p class="pulse-passed">${icon('check')} All checkpoints passed</p>` : '<p>Waiting for the next learner update.</p>'}</div>
         <dl><div><dt>Lesson code</dt><dd>${escapeHtml(lesson.shareCode)}</dd></div><div><dt>Privacy</dt><dd>${icon('lock')} Selected evidence only</dd></div></dl>
-        ${role === 'tutor' ? `<button class="danger-link" id="delete-lesson" type="button">Delete this lesson and its evidence</button>` : '<p class="rail-note">Need a new checkpoint? Ask your tutor; the learner view cannot alter the lesson path.</p>'}
+        ${role === 'tutor' ? `<button class="danger-link" id="delete-lesson" type="button">Delete this lesson and its results</button>` : '<p class="rail-note">Need a new checkpoint? Ask your tutor. Learners cannot change the lesson.</p>'}
       </aside>
-      <section class="timeline" aria-labelledby="timeline-title"><div class="timeline-intro"><h2 id="timeline-title">Checkpoint trail</h2><p>${role === 'tutor' ? 'Newest evidence appears inside each checkpoint.' : 'Run each command in your own terminal. Share when you choose.'}</p></div><ol>${lesson.checkpoints.map((checkpoint) => checkpointMarkup(checkpoint, role)).join('')}</ol></section>
+      <section class="timeline" aria-labelledby="timeline-title"><div class="timeline-intro"><h2 id="timeline-title">Checkpoint attempts</h2><p>${role === 'tutor' ? 'Newest results appear inside each checkpoint.' : 'Run each command in your own terminal. Share when you choose.'}</p></div><ol>${lesson.checkpoints.map((checkpoint) => checkpointMarkup(checkpoint, role)).join('')}</ol></section>
     </div>
     ${role === 'learner' ? evidenceDialogs(lesson.checkpoints) : ''}
     ${role === 'tutor' ? `<dialog id="delete-dialog" class="confirm-dialog" aria-labelledby="delete-title"><form method="dialog"><button class="dialog-close icon-button" value="cancel" aria-label="Close delete confirmation">×</button></form><h2 id="delete-title">Delete “${escapeHtml(lesson.title)}”?</h2><p>This permanently removes every checkpoint, run, note, and reply. Type <strong>DELETE</strong> to confirm.</p><form id="delete-form"><label>Confirmation <input name="confirmation" autocomplete="off" required pattern="DELETE"></label><p class="inline-error" role="alert"></p><button class="button danger" type="submit">Delete lesson permanently</button></form></dialog>` : ''}`);
 
   bindLessonEvents(lesson, role, token);
   if (created) announce('Lesson created. Your private tutor link is saved on this device.');
+  finishRoute(`${role === 'tutor' ? 'Review' : 'Run'} the checkpoints for ${lesson.title}.`);
 }
 
 function storedDemo(): DemoWorkspace | null {
@@ -357,6 +385,7 @@ async function demoPage(forceFresh = false): Promise<void> {
     app.innerHTML = shell(`<section class="error-state paper-layer"><span class="error-mark">!</span><h1>The sample did not load.</h1><p>${escapeHtml(message)}</p><button class="button primary" type="button" id="retry-demo">Try the sample again</button></section>`, { current: 'demo', demo: true });
     document.querySelector('#retry-demo')?.addEventListener('click', () => void demoPage(true));
     bindDemoBanner({ workspaceId: '', expiresAt: 0, lesson: {} as Lesson });
+    finishRoute('The temporary sample lesson could not be loaded. Try again when the connection is available.', '/demo');
   }
 }
 
@@ -372,11 +401,11 @@ function renderDemo(workspace: DemoWorkspace): void {
     <div class="lesson-layout demo-layout">
       <aside class="lesson-rail">
         <div class="progress-ring" aria-label="${completed} of ${lesson.checkpoints.length} checkpoints passed"><strong>${completed}/${lesson.checkpoints.length}</strong><span>passed</span></div>
-        <div><h2>Lesson pulse</h2>${blocked ? `<p class="pulse-blocked">${icon('block')} First block at checkpoint ${blocked.position}</p><a href="#checkpoint-${escapeHtml(blocked.id)}">Jump to the snag →</a>` : '<p>Waiting for a learner update.</p>'}</div>
+        <div><h2>Lesson status</h2>${blocked ? `<p class="pulse-blocked">${icon('block')} First block at checkpoint ${blocked.position}</p><a href="#checkpoint-${escapeHtml(blocked.id)}">Open the blocked checkpoint →</a>` : '<p>Waiting for a learner update.</p>'}</div>
         <dl><div><dt>Lesson code</dt><dd>${escapeHtml(lesson.shareCode)}</dd></div><div><dt>Privacy</dt><dd>${icon('lock')} Selected evidence only</dd></div></dl>
         <p class="rail-note">This 24-hour workspace is separate from real lessons. Resetting removes its local sample copy.</p>
       </aside>
-      <section class="timeline" aria-labelledby="demo-timeline-title"><div class="timeline-intro"><h2 id="demo-timeline-title">Checkpoint trail</h2><p>Open each attempt to see the chosen output, note, and reply.</p></div><ol>${lesson.checkpoints.map((checkpoint) => checkpointMarkup(checkpoint, 'tutor')).join('')}</ol></section>
+      <section class="timeline" aria-labelledby="demo-timeline-title"><div class="timeline-intro"><h2 id="demo-timeline-title">Checkpoint attempts</h2><p>Open each attempt to see the chosen output, note, and reply.</p></div><ol>${lesson.checkpoints.map((checkpoint) => checkpointMarkup(checkpoint, 'tutor')).join('')}</ol></section>
     </div>
     <section class="demo-redaction" aria-labelledby="demo-redaction-title">
       <div><p class="eyebrow"><span></span>Safe practice area</p><h2 id="demo-redaction-title">Preview output redaction.</h2><p>Paste test output here. The browser hides common credentials and trims shared output to 8,000 characters.</p></div>
@@ -405,7 +434,7 @@ function renderDemo(workspace: DemoWorkspace): void {
       ? 'Nothing entered. This preview stays in the demo.'
       : `${redacted.redactions} possible ${redacted.redactions === 1 ? 'secret' : 'secrets'} hidden.${redacted.trimmed ? ' Output trimmed to 8,000 characters.' : ''}`;
   });
-  bindConnectivity();
+  finishRoute('Explore Sam’s temporary three-checkpoint lesson with passed, blocked, and replied attempts.', '/demo');
 }
 
 function bindDemoBanner(workspace: DemoWorkspace): void {
@@ -421,7 +450,7 @@ function bindDemoBanner(workspace: DemoWorkspace): void {
   document.querySelector<HTMLButtonElement>('#start-real')?.addEventListener('click', () => {
     if (workspace.workspaceId) void discardDemo(workspace.workspaceId);
     localStorage.removeItem(DEMO_STORAGE_KEY);
-    location.assign('/new');
+    navigate('/new');
   });
 }
 
@@ -500,6 +529,7 @@ function bindLessonEvents(lesson: Lesson, role: 'tutor' | 'learner', token: stri
 }
 
 type LicenseVerdict = { valid: boolean; reason: string; expires_at?: string };
+type LicenseCache = { token: string; at: number; verdict: LicenseVerdict };
 
 function readLicense(): string | null {
   return localStorage.getItem(`sb_license:${PRODUCT_SLUG}`);
@@ -507,29 +537,30 @@ function readLicense(): string | null {
 
 async function verifyLicense(token: string, force = false): Promise<LicenseVerdict> {
   const cacheKey = `sb_license_verdict:${PRODUCT_SLUG}`;
-  const cached = JSON.parse(localStorage.getItem(cacheKey) ?? 'null') as { at: number; verdict: LicenseVerdict } | null;
-  if (!force && cached && Date.now() - cached.at < 86_400_000) return cached.verdict;
+  const cached = JSON.parse(localStorage.getItem(cacheKey) ?? 'null') as LicenseCache | null;
+  if (!force && cached?.token === token && Date.now() - cached.at < 86_400_000) return cached.verdict;
   const response = await fetch(`${BILLING_BASE}/products/${PRODUCT_SLUG}/verify?license=${encodeURIComponent(token)}`);
   if (!response.ok) throw new Error('License verification is temporarily unavailable. Your free lesson tools still work.');
   const verdict = await response.json() as LicenseVerdict;
-  localStorage.setItem(cacheKey, JSON.stringify({ at: Date.now(), verdict }));
+  localStorage.setItem(cacheKey, JSON.stringify({ token, at: Date.now(), verdict }));
   return verdict;
 }
 
 async function pricing(): Promise<void> {
   document.title = 'Team plan — Code Lesson Checkpoints';
   const token = readLicense();
-  const cached = JSON.parse(localStorage.getItem(`sb_license_verdict:${PRODUCT_SLUG}`) ?? 'null') as { verdict: LicenseVerdict } | null;
-  const optimistic = Boolean(token && cached?.verdict.valid);
+  const cached = JSON.parse(localStorage.getItem(`sb_license_verdict:${PRODUCT_SLUG}`) ?? 'null') as LicenseCache | null;
+  const optimistic = Boolean(token && cached?.token === token && cached.verdict.valid);
   app.innerHTML = shell(`
-    <section class="pricing-intro"><p class="eyebrow"><span></span>One useful free pair</p><h1>Start with the lesson.<br>Grow into a roster.</h1><p>The learner/tutor pair is free and complete. The Team archive is a one-time purchase for tutors who need continuity across a small roster.</p></section>
+    <section class="pricing-intro"><p class="eyebrow"><span></span>Free lessons or a local archive</p><h1>Plan lessons for free.<br>Keep links together.</h1><p>Lesson planning and sharing are free. Team archive is a one-time purchase for searching tutor links saved on this device.</p></section>
     <section class="price-grid" aria-label="Plans">
-      <article class="price-sheet"><p class="plan-name">Pair</p><h2>Free</h2><p class="price-note">No card · no trial clock</p><ul><li>${icon('check')} One active tutor–learner pair</li><li>${icon('check')} Unlimited checkpoints and replies</li><li>${icon('check')} Evidence export and deletion</li><li>${icon('check')} Local secret redaction</li></ul><a class="button secondary" href="/new">Plan a free lesson</a></article>
-      <article class="price-sheet featured"><div class="paper-tab">One-time unlock</div><p class="plan-name">Team archive</p><h2>$39 <small>once</small></h2><p class="price-note">For one tutor · updates included</p><ul><li>${icon('check')} Everything in Pair</li><li>${icon('check')} Searchable learner roster</li><li>${icon('check')} Extended lesson history</li><li>${icon('check')} Private links saved on this device</li></ul>${optimistic ? '<a class="button primary" href="/team">Open Team archive</a>' : `<a class="button primary" href="${BILLING_BASE}/products/${PRODUCT_SLUG}/checkout">Buy Team archive ${icon('run')}</a>`}<p class="merchant-note">Secure checkout by Sociobot/Dodo, the merchant of record. Refunds are handled there and revoke the license.</p></article>
+      <article class="price-sheet"><p class="plan-name">Pair</p><h2>Free</h2><p class="price-note">No purchase required</p><ul><li>${icon('check')} Plan and share lessons</li><li>${icon('check')} Copy commands and reply to attempts</li><li>${icon('check')} Export and delete lesson records</li><li>${icon('check')} Hide common keys before sharing</li></ul><a class="button secondary" href="/new">Plan a free lesson</a></article>
+      <article class="price-sheet featured"><div class="paper-tab">One-time purchase</div><p class="plan-name">Team archive</p><h2>$39 <small>once</small></h2><p class="price-note">For one tutor</p><ul><li>${icon('check')} Everything in Pair</li><li>${icon('check')} Search by learner or lesson</li><li>${icon('check')} Reopen tutor links saved on this device</li><li>${icon('check')} No recurring fee</li></ul>${optimistic ? '<a class="button primary" href="/team">Open Team archive</a>' : `<a class="button primary" href="${BILLING_BASE}/products/${PRODUCT_SLUG}/checkout">Buy Team archive ${icon('run')}</a>`}<p class="merchant-note">Sociobot/Dodo is the merchant of record. Its hosted checkout handles payment and refunds.</p></article>
     </section>
     <section class="restore-sheet"><div><h2>${optimistic ? 'Team archive is unlocked' : 'Already purchased?'}</h2><p>${optimistic ? 'This browser has an active cached license. We’ll quietly recheck it in the background.' : 'Paste your license to restore Team archive on this device.'}</p></div><form id="license-form"><label for="license">License token</label><div><input id="license" name="license" autocomplete="off" required value="${escapeHtml(token ?? '')}" placeholder="Paste license token"><button class="button secondary" type="submit">Verify license</button></div><p id="license-status" role="status" aria-live="polite"></p></form></section>
     <p class="legal-callout">Buying means you agree to the <a href="/terms">terms</a>. See how license and lesson data are handled in our <a href="/privacy">privacy notice</a>.</p>`, { current: 'pricing' });
   const form = document.querySelector<HTMLFormElement>('#license-form');
+  finishRoute('Compare free lesson tools with the $39 local Team archive.', '/pricing');
   form?.addEventListener('submit', async (event) => {
     event.preventDefault();
     const data = new FormData(form);
@@ -545,6 +576,7 @@ async function pricing(): Promise<void> {
         void pricing();
       } else {
         localStorage.removeItem(`sb_license:${PRODUCT_SLUG}`);
+        localStorage.removeItem(`sb_license_verdict:${PRODUCT_SLUG}`);
         if (status) status.textContent = `License no longer active (${verdict.reason.replace('_', ' ')}). You can continue using the free Pair plan.`;
       }
     } catch (cause) { if (status) status.textContent = cause instanceof Error ? cause.message : 'The license could not be checked.'; }
@@ -553,6 +585,7 @@ async function pricing(): Promise<void> {
     const status = document.querySelector<HTMLElement>('#license-status');
     if (!verdict.valid) {
       localStorage.removeItem(`sb_license:${PRODUCT_SLUG}`);
+      localStorage.removeItem(`sb_license_verdict:${PRODUCT_SLUG}`);
       if (status) status.textContent = `License no longer active (${verdict.reason.replace('_', ' ')}). Free lesson tools remain available.`;
     } else if (!optimistic) {
       // A checkout return stores its token before the first render, but has no
@@ -566,9 +599,10 @@ async function pricing(): Promise<void> {
 function teamArchive(): void {
   document.title = 'Team archive — Code Lesson Checkpoints';
   const token = readLicense();
-  const cached = JSON.parse(localStorage.getItem(`sb_license_verdict:${PRODUCT_SLUG}`) ?? 'null') as { verdict: LicenseVerdict } | null;
-  if (!token || !cached?.verdict.valid) {
+  const cached = JSON.parse(localStorage.getItem(`sb_license_verdict:${PRODUCT_SLUG}`) ?? 'null') as LicenseCache | null;
+  if (!token || cached?.token !== token || !cached.verdict.valid) {
     app.innerHTML = shell(`<section class="error-state paper-layer"><span class="error-mark">${icon('lock')}</span><h1>Team archive is locked.</h1><p>The free Pair workflow is ready whenever you need it. A one-time Team archive license adds a searchable roster and keeps private lesson links together on this device.</p><a class="button primary" href="/pricing">See Team archive</a></section>`, { current: 'team' });
+    finishRoute('Restore or buy a Team archive license to search tutor links saved on this device.', '/team');
     return;
   }
   const archive = JSON.parse(localStorage.getItem('clc:archive') ?? '[]') as ArchivedLesson[];
@@ -578,7 +612,8 @@ function teamArchive(): void {
     const value = (event.currentTarget as HTMLInputElement).value.trim().toLowerCase();
     document.querySelectorAll<HTMLElement>('.archive-row').forEach((row) => { row.hidden = !row.dataset.search?.includes(value); });
   });
-  void verifyLicense(token).then((verdict) => { if (!verdict.valid) { localStorage.removeItem(`sb_license:${PRODUCT_SLUG}`); teamArchive(); } }).catch(() => undefined);
+  finishRoute('Search and reopen private tutor links saved on this device.', '/team');
+  void verifyLicense(token).then((verdict) => { if (!verdict.valid) { localStorage.removeItem(`sb_license:${PRODUCT_SLUG}`); localStorage.removeItem(`sb_license_verdict:${PRODUCT_SLUG}`); teamArchive(); } }).catch(() => undefined);
 }
 
 function legal(kind: 'privacy' | 'terms'): void {
@@ -587,17 +622,18 @@ function legal(kind: 'privacy' | 'terms'): void {
   const content = isPrivacy ? `
     <p class="updated">Effective August 28, 2026</p><h1>Privacy, in plain language.</h1><p class="legal-lede">The product exists to share less than a screen recording—not to create a new surveillance stream.</p>
     <h2>What the relay stores</h2><p>For a lesson, the relay stores its title, optional learner name, checkpoint commands, selected command output, learner notes, tutor replies, status, and timestamps. It does not request or upload project source files. Common secret patterns are redacted in your browser and again on the server, but you should still review output before submitting.</p>
-    <h2>Access and retention</h2><p>A random private link controls tutor access. A six-character lesson code lets the learner view and submit to that lesson. Treat both as private. The tutor can permanently delete the lesson and all related evidence at any time. Operational backups, if enabled by the host, expire on the host’s backup schedule.</p>
+    <h2>Access and retention</h2><p>A random private link controls tutor access. A six-character code lets the learner open that lesson. Treat both as private. The tutor can permanently delete the lesson and all shared results at any time.</p>
     <h2>Local device data</h2><p>Your browser stores private tutor links and, if purchased, the Sociobot license token and a daily verification result. The sample demo uses a separate browser key that Reset demo or Start for real removes. Clear site data to remove all local records from that device.</p>
-    <h2>Payments and measurement</h2><p>Sociobot/Dodo is the merchant of record and handles checkout. This app does not receive payment card details. No advertising trackers or third-party analytics run here. The host may retain short-lived server request logs for reliability and abuse prevention.</p>
+    <h2>Payments and measurement</h2><p>Sociobot/Dodo is the merchant of record and handles checkout. This app does not receive payment card details. No advertising trackers or third-party analytics run here.</p>
     <h2>Your choices</h2><p>Do not enter sensitive personal information into lesson titles, notes, or output. Tutors can delete a lesson from its private view. For access or deletion help when the private link is lost, contact the site operator through the project repository.</p>` : `
     <p class="updated">Effective August 28, 2026</p><h1>Terms for a clear lesson record.</h1><p class="legal-lede">Use Code Lesson Checkpoints as a consent-based teaching aid, not an automated judge or monitoring tool.</p>
-    <h2>Acceptable use</h2><p>You may define lesson checkpoints and exchange selected execution evidence with people who agreed to participate. Do not use the service to collect secrets, harass learners, conceal monitoring, run malicious commands, or violate school, workplace, or local policies.</p>
+    <h2>Acceptable use</h2><p>You may add lesson checkpoints and share selected run results with people who agreed to participate. Do not collect secrets, harass learners, conceal monitoring, run malicious commands, or violate school, workplace, or local policies.</p>
     <h2>Your responsibilities</h2><p>Tutors are responsible for choosing safe commands and protecting private tutor links. Learners are responsible for reviewing selected output before sharing. Both parties are responsible for having an appropriate legal basis to store educational records, including any institutional FERPA or GDPR requirements.</p>
-    <h2>Team archive purchase</h2><p>Team archive costs $39 as a one-time license unlock for one tutor and includes small-team roster and extended-history features. Sociobot/Dodo is the merchant of record. Its hosted checkout handles payment and refunds; a refund automatically revokes the license. Accessibility, deletion, and core export are never paid gates.</p>
+    <h2>Team archive purchase</h2><p>Team archive costs $39 once for one tutor. It searches and reopens lesson links saved on that device. Sociobot/Dodo is the merchant of record. Its hosted checkout handles payment and refunds. A refund revokes the license. Accessibility, deletion, and export remain free.</p>
     <h2>Availability and warranty</h2><p>The service is provided “as is” without a promise of uninterrupted availability. It is not a source backup, grading authority, or emergency communication channel. To the extent allowed by law, liability is limited to the amount paid for the service.</p>
     <h2>Changes</h2><p>Material changes will be reflected by a new effective date. Continued use after a change means you accept the revised terms.</p>`;
   app.innerHTML = shell(`<article class="legal-page">${content}</article>`, { compact: true });
+  finishRoute(isPrivacy ? 'Learn what lesson and device data this product stores and how to delete it.' : 'Read the terms for lesson records and the optional Team archive.', `/${kind}`);
 }
 
 function route(): void {
@@ -607,7 +643,9 @@ function route(): void {
     history.replaceState({}, '', location.pathname);
   }
   const path = location.pathname.replace(/\/+$/, '') || '/';
-  if (path === '/') home();
+  const demoQuery = path === '/' && new URLSearchParams(location.search).get('demo') === '1';
+  if (demoQuery) void demoPage();
+  else if (path === '/') home();
   else if (path === '/demo') void demoPage();
   else if (path === '/new') newLesson();
   else if (path === '/join') join();
@@ -619,15 +657,15 @@ function route(): void {
   else if (/^\/join\/[^/]+$/.test(path)) void lessonPage('learner', normalizeShareCode(decodeURIComponent(path.split('/')[2])));
   else {
     document.title = 'Page not found — Code Lesson Checkpoints';
-    app.innerHTML = shell('<section class="error-state paper-layer"><span class="error-mark">404</span><h1>This path has no checkpoint.</h1><p>The page may have moved, or the address may be incomplete.</p><a class="button primary" href="/">Return home</a></section>');
+    app.innerHTML = shell('<section class="error-state paper-layer"><span class="error-mark">404</span><h1>Page not found</h1><p>The page may have moved, or the address may be incomplete.</p><a class="button primary" href="/">Return home</a></section>');
+    finishRoute('The requested page was not found. Return to Code Lesson Checkpoints.', path);
   }
-  const canonicalPath = path === '/' ? '/' : path;
-  const canonicalUrl = `https://code-lesson-checkpoints.sociobot.in${canonicalPath}`;
-  document.querySelector<HTMLLinkElement>('link[rel="canonical"]')?.setAttribute('href', canonicalUrl);
-  document.querySelector<HTMLMetaElement>('meta[property="og:url"]')?.setAttribute('content', canonicalUrl);
-  document.querySelector<HTMLMetaElement>('meta[property="og:title"]')?.setAttribute('content', document.title);
-  document.querySelector<HTMLMetaElement>('meta[name="twitter:title"]')?.setAttribute('content', document.title);
-  bindConnectivity();
+}
+
+function navigate(url: string): void {
+  history.pushState({}, '', url);
+  routeFocusRequested = true;
+  route();
 }
 
 function bindConnectivity(): void {
@@ -639,4 +677,17 @@ function bindConnectivity(): void {
 }
 
 if ('serviceWorker' in navigator && import.meta.env.PROD) window.addEventListener('load', () => void navigator.serviceWorker.register('/sw.js'));
+document.addEventListener('click', (event) => {
+  if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+  const link = (event.target as HTMLElement).closest<HTMLAnchorElement>('a[href]');
+  if (!link || link.target || link.hasAttribute('download')) return;
+  const target = new URL(link.href, location.href);
+  if (target.origin !== location.origin || (target.pathname === location.pathname && target.search === location.search && target.hash)) return;
+  event.preventDefault();
+  navigate(`${target.pathname}${target.search}${target.hash}`);
+});
+window.addEventListener('popstate', () => {
+  routeFocusRequested = true;
+  route();
+});
 route();

@@ -1,36 +1,65 @@
-# Landing-page copy audit
+# Copy audit
 
-Audited 2026-08-30. Counts treat contractions and hyphenated terms as one word. Interface labels and fragments are included where they carry meaning. No landing-page sentence exceeds 22 words or uses a banned marketing word.
+Audited 2026-09-01. Counts treat contractions and hyphenated terms as one word.
+No landing-page unit exceeds 22 words. No unit contains a banned marketing word.
 
-| Copy | Words |
-| --- | ---: |
-| See where the lesson got stuck. | 7 |
-| Remote programming tutors define runnable checkpoints. | 6 |
-| Learners run them locally and choose what evidence to share. | 10 |
-| Try it with sample data | 5 |
-| Plan a lesson | 3 |
-| I have a lesson code | 5 |
-| No source uploads | 3 |
-| Output reviewed first | 3 |
-| Free for one pair | 4 |
-| A record of the work, not a recording of the learner. | 11 |
-| Add the shell commands or tests that define progress. | 9 |
-| The learner can copy them into their own terminal. | 9 |
-| They choose Passed or Blocked, review automatic secret redaction, and consent before anything leaves their machine. | 16 |
-| Read the selected output and reflection in sequence. | 9 |
-| Reply to the exact attempt that needs a nudge. | 9 |
-| A checkpoint relay. Not an IDE. | 6 |
-| No remote control, keystroke recording, source collection, automated grading, or generated answers. | 13 |
-| The learner keeps the keyboard—and the context. | 8 |
+| Landing-page copy | Words | Result |
+| --- | ---: | --- |
+| Code Lesson Checkpoints | 3 | Pass |
+| Demo | 1 | Pass |
+| Join lesson | 2 | Pass |
+| Team plan | 2 | Pass |
+| Plan a lesson | 3 | Pass |
+| Learners choose what to share | 5 | Pass |
+| See where the lesson got stuck. | 6 | Pass |
+| Remote programming tutors add commands or tests for each lesson step. | 11 | Pass |
+| Learners run them locally and choose what to share. | 9 | Pass |
+| Try it with sample data | 5 | Pass |
+| Opens Sam’s three-checkpoint lesson in a temporary demo. | 8 | Pass |
+| Plan a lesson | 3 | Pass |
+| Join with a lesson code | 5 | Pass |
+| No source uploads | 3 | Pass |
+| Learners review output before sharing | 5 | Pass |
+| Free lesson planning | 3 | Pass |
+| A paper-cut path where a small terminal slip crosses three checkpoint steps toward a reply flag | 16 | Pass |
+| Run locally | 2 | Pass |
+| Share selected output | 3 | Pass |
+| Reply in context | 3 | Pass |
+| How it works | 3 | Pass |
+| A record of the work, not a recording of the learner. | 11 | Pass |
+| Add checkpoints | 2 | Pass |
+| Add the commands or tests that define progress. | 8 | Pass |
+| Learners can copy them into their own terminal. | 8 | Pass |
+| Run and review | 3 | Pass |
+| Learners choose Passed or Blocked. | 5 | Pass |
+| They check hidden passwords and keys, then approve what leaves their computer. | 12 | Pass |
+| Install the VS Code companion | 5 | Pass |
+| Reply to the blocked attempt | 5 | Pass |
+| Read the selected output and note in order. | 8 | Pass |
+| Reply to the exact attempt that needs help. | 8 | Pass |
+| What this tool does not do | 6 | Pass |
+| Share lesson results, not source code. | 6 | Pass |
+| No remote control, keystroke recording, source collection, automated grading, or generated answers. | 12 | Pass |
+| The learner keeps the keyboard—and the context. | 8 | Pass |
+| Create your first lesson | 4 | Pass |
+| Learners choose which run results to share. | 7 | Pass |
+| Paper-path artwork generated for this product. | 6 | Pass |
+| No source code is uploaded by default. | 7 | Pass |
+| Built by Param Factory | 4 | Pass |
+
+## README check
+
+Every prose sentence is 22 words or fewer. The opening names the user, job, and first result without jargon.
+The undefined “extended history” promise and internal deployment promises were removed.
 
 ## Terminology
 
-| Concept | Word used |
+| Concept | One term |
 | --- | --- |
-| Tutor-defined runnable step | checkpoint |
-| Learner-selected status, output, and note | evidence |
-| Six-character learner access value | lesson code |
-| Private teacher access | tutor link |
-| Ordered lesson activity | checkpoint trail |
-| Paid local roster | Team archive |
+| Tutor-defined command or test | checkpoint |
+| Learner-selected status and output | run results |
+| Learner explanation | note |
+| Six-character learner access | lesson code |
+| Private tutor access | tutor link |
+| Paid local link index | Team archive |
 | Isolated sample workspace | demo |

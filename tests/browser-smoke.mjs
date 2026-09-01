@@ -58,7 +58,7 @@ try {
   assert.equal((await page.locator('body').evaluate((body) => body.scrollWidth <= innerWidth)), true, 'home page overflows at 390px');
   await assertTouchTargets(page, [
     { selector: 'header .brand', name: 'header home link' },
-    { selector: '.hero-actions a[href="/demo"]', name: 'sample-data action' },
+    { selector: '.hero-actions a[href="/?demo=1"]', name: 'sample-data action' },
     { selector: '.hero-actions .text-link', name: 'lesson-code link' },
   ], 'mobile home');
   await page.keyboard.press('Tab');
@@ -72,14 +72,22 @@ try {
 
   await page.evaluate(() => localStorage.setItem('clc:archive', JSON.stringify([{ id: 'real-record' }])));
   await page.getByRole('link', { name: /Try it with sample data/ }).click();
-  await page.waitForURL(`${baseURL}/demo`);
+  await page.waitForURL(`${baseURL}/?demo=1`);
   await page.getByRole('heading', { name: 'Find the first blocked checkpoint.' }).waitFor();
+  assert.equal(await page.locator('main h1').evaluate((heading) => document.activeElement === heading), true, 'forward route moves focus to the demo heading');
+  await page.goBack();
+  await page.getByRole('heading', { name: 'See where the lesson got stuck.' }).waitFor();
+  assert.equal(await page.locator('main h1').evaluate((heading) => document.activeElement === heading), true, 'Back moves focus to the restored heading');
+  await page.goForward();
+  await page.getByRole('heading', { name: 'Find the first blocked checkpoint.' }).waitFor();
+  assert.equal(await page.locator('main h1').evaluate((heading) => document.activeElement === heading), true, 'Forward restores focus to the demo heading');
   await page.getByText('Demo — sample data, nothing is saved').waitFor();
   await page.getByText('First block at checkpoint 2').waitFor();
   assert.equal(await page.getByText('qa_password').count(), 0, 'sample evidence contains no raw secret');
   assert.deepEqual(await page.evaluate(() => JSON.parse(localStorage.getItem('clc:archive') ?? 'null')), [{ id: 'real-record' }], 'demo leaves real archive storage untouched');
   const demoKeys = await page.evaluate(() => Object.keys(localStorage).filter((key) => key.startsWith('demo:')));
   assert.deepEqual(demoKeys, ['demo:clc:workspace'], 'demo uses only its namespaced storage key');
+  assert.equal(await page.locator('h4').count(), 0, 'demo heading levels do not skip from h2 to h4');
   const firstWorkspace = await page.evaluate(() => JSON.parse(localStorage.getItem('demo:clc:workspace') ?? '{}').workspaceId);
   await page.getByLabel('Sample terminal output').fill(`API_KEY=browser-secret\n${'x'.repeat(8_100)}`);
   await page.getByText('1 possible secret hidden. Output trimmed to 8,000 characters.').waitFor();
@@ -106,6 +114,7 @@ try {
     assert.equal(response?.status(), 200, `${route} response status`);
     assert.equal(await page.locator('h1').count(), 1, `${route} must have one h1`);
     assert.equal(await page.locator('link[rel="canonical"]').getAttribute('href'), `https://code-lesson-checkpoints.sociobot.in${route}`);
+    assert.ok((await page.locator('meta[name="description"]').getAttribute('content'))?.length > 20, `${route} has a route description`);
     assert.equal(await page.locator('body').evaluate((body) => body.scrollWidth <= innerWidth), true, `${route} overflows at 390px`);
     if (route === '/pricing') {
       await assertTouchTargets(page, [
@@ -133,9 +142,9 @@ try {
   await page.goto(`${baseURL}/new`);
   await assertAccessible(page, 'lesson form');
   await page.getByLabel('Lesson title').fill('Async debugging');
-  await page.getByRole('button', { name: /Create lesson path/ }).click();
+  await page.getByRole('button', { name: /Create lesson/ }).click();
   await page.waitForURL(/\/lesson\//);
-  await page.getByText('Your lesson path is ready.').waitFor();
+  await page.getByText('Your lesson is ready.').waitFor();
   const code = (await page.locator('.share-strip > code').textContent())?.trim();
   assert.equal(code?.length, 6);
 
@@ -157,7 +166,7 @@ try {
   await dialog.getByLabel('Blocked').check();
   await dialog.getByLabel(/Selected terminal output/).fill('SERVICE_TOKEN=browser-secret\nExpected 200 but got 401');
   await dialog.getByLabel(/What do you think/).fill('The request may be missing its header.');
-  await dialog.getByLabel(/I reviewed this evidence/).check();
+  await dialog.getByLabel(/I reviewed these results/).check();
   await dialog.getByRole('button', { name: /Share this run/ }).click();
   await learner.getByText('SERVICE_TOKEN=[redacted]').waitFor();
   assert.equal(await learner.getByText('browser-secret').count(), 0);
@@ -201,6 +210,8 @@ try {
   const missingResponse = await missingPage.goto(`${baseURL}/missing-page`);
   assert.equal(missingResponse?.status(), 404, 'unknown route has a real HTTP 404');
   assert.equal(await missingPage.locator('h1').count(), 1, 'not-found page has one h1');
+  assert.equal(await missingPage.getByRole('heading', { name: 'Page not found' }).count(), 1);
+  assert.equal((await missingPage.locator('footer a[href^="https://github.com"]').textContent())?.trim(), 'Source on GitHub (external)');
   await assertAccessible(missingPage, 'not-found page');
   await missingContext.close();
 

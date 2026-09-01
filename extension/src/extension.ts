@@ -91,7 +91,7 @@ async function reviewEvidence(lesson: Lesson, checkpoint: Checkpoint, initialSta
     { label: 'Keep private', status: null },
   ], { title: `Review selected output · detected as ${initialStatus}`, placeHolder: 'Nothing is shared until you choose a status' });
   if (!choice?.status) return;
-  const note = await vscode.window.showInputBox({ title: 'Optional reflection', prompt: 'What did you expect, and what did you notice?', placeHolder: 'Leave blank to share without a note', ignoreFocusOut: true });
+  const note = await vscode.window.showInputBox({ title: 'Optional note', prompt: 'What did you expect, and what did you notice?', placeHolder: 'Leave blank to share without a note', ignoreFocusOut: true });
   if (note === undefined) return;
   const consent = await vscode.window.showInformationMessage(
     `Share this ${choice.status} update with your tutor?`,

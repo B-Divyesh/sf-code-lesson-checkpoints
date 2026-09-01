@@ -1,7 +1,7 @@
 {
   "name": "code-lesson-checkpoints",
   "displayName": "Code Lesson Checkpoints",
-  "description": "Run learner-owned lesson checkpoints locally and share selected evidence.",
+  "description": "Run lesson checkpoints locally and choose which results to share.",
   "version": "0.1.0",
   "publisher": "sociobot",
   "license": "MIT",
@@ -25,7 +25,7 @@
         "codeLesson.serverUrl": {
           "type": "string",
           "default": "https://code-lesson-checkpoints.sociobot.in",
-          "description": "Checkpoint relay URL. Change this only when your tutor gives you a self-hosted relay."
+          "description": "Lesson service URL. Change this only when your tutor gives you a self-hosted service."
         }
       }
     }

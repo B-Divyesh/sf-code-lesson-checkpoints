@@ -1,73 +1,89 @@
 # Code Lesson Checkpoints
 
-Code Lesson Checkpoints gives remote programming tutors a consent-based trail of runnable milestones. A tutor defines commands or tests, a learner runs them locally, and the learner shares only a status, selected output, and an optional reflection. The tutor sees attempts in order and replies at the first misconception—without taking over the learner’s screen.
+Code Lesson Checkpoints helps remote programming tutors see where a learner’s code first fails.
 
-The free Pair plan is useful for one tutor/learner pair. A $39 one-time Team archive license adds small-roster history controls through the Sociobot billing service. The app never embeds a payment provider.
+Tutors add commands or tests. Learners run them locally and choose whether to share a status, selected output, and note.
+The tutor sees attempts in order and replies to the blocked attempt without taking over the learner’s screen.
 
-Try the isolated sample at `https://code-lesson-checkpoints.sociobot.in/demo`. It opens a realistic three-checkpoint lesson with a passed run, a blocked run, redacted evidence, and a tutor reply. **Reset demo** provisions a fresh 24-hour workspace. **Start for real** discards the sample and opens the lesson planner. Demo state uses only the `demo:clc:workspace` browser key and never enters the real lesson tables.
+Lesson planning and sharing are free. The optional Team archive costs $39 once.
+It searches and reopens tutor links saved on that device. Checkout runs on Sociobot’s hosted billing page.
+The app never embeds a payment provider.
+
+## Try the sample
+
+Open the isolated sample at <https://code-lesson-checkpoints.sociobot.in/?demo=1>.
+It contains three checkpoints, passed and blocked runs, hidden sample credentials, a learner note, and a tutor reply.
+
+**Reset demo** replaces the temporary workspace. **Start for real** deletes the sample and opens the lesson planner.
+The demo uses only the `demo:clc:workspace` browser key. It never reads or changes real lesson keys.
 
 ## What is included
 
-- Rust/Axum relay with one durable SQLite state file, hashed private tutor tokens, short learner codes, validation, secure response headers, JSON logs, migrations, and graceful shutdown
-- Vite/TypeScript responsive web app for planning, joining, submitting evidence, responding, and deleting records
-- VS Code extension source under `extension/`; it displays the exact tutor-defined command for learner confirmation, runs locally, redacts/caps output, and asks again before sharing
-- Local secret-pattern redaction plus a second server-side pass; 8,000-character output cap
-- Offline shell, explicit loading/empty/error states, keyboard-operable forms and dialogs, and reduced-motion treatment
-- Hosted-checkout license return, daily verification cache, and restore-by-token flow
+- A Rust and SQLite service for lesson records
+- A responsive TypeScript web app for tutors and learners
+- An isolated sample that reloads offline after its first visit
+- JSON export and permanent lesson deletion
+- Local and server checks that hide common keys and cap output
+- A packaged VS Code companion for running tutor commands locally
+
+## Install the VS Code companion
+
+Download [Code Lesson Checkpoints 0.1.0](https://code-lesson-checkpoints.sociobot.in/downloads/code-lesson-checkpoints-0.1.0.vsix).
+
+1. Open the Extensions view in VS Code.
+2. Choose **Install from VSIX…** from the view menu.
+3. Select the downloaded file.
+4. Run **Code Lesson: Connect to Lesson** and enter the six-character lesson code.
+5. Run **Code Lesson: Open Checkpoints** to review a command before running it.
+
+For extension development, open this repository with `extension/` as the extension root.
+Use an Extension Development Host, or run `npm run test:package` to inspect a fresh package.
 
 ## Run locally
 
-Requirements: Node 22+, npm 10+, Rust 1.85+ and a C toolchain.
+Requirements: Node 22+, npm 10+, current stable Rust, and a C toolchain.
 
 ```bash
 npm ci
-npm run assets       # only needed when regenerating image derivatives
-npm run build        # writes the web app to dist/ and compiles extension/dist/
+npm run build
 cargo run
 ```
 
-Open `http://localhost:8080`. For frontend hot reload, run `cargo run` and `npm run dev` in separate terminals, then open `http://localhost:5173`.
-
-The container starts with only `PORT`; its state file is `/data/checkpoints.db` when the durable mount exists, otherwise `checkpoints.db` for local development. `/health` reports the compiled build SHA and `database: "sqlite"`.
-
-| Variable | Default | Purpose |
-| --- | --- | --- |
-| `PORT` | `8080` | HTTP listener |
+Open <http://localhost:8080>. For frontend hot reload, run `cargo run` and `npm run dev` in separate terminals.
 
 ## Test and verify
 
 ```bash
-npm test             # Vitest privacy helpers + Rust unit/API flow tests
-npm run test:claims  # every user-facing claim against the sample sandbox
-npm run check        # strict TypeScript checks, including the extension
-npm run lint         # TypeScript, Rust formatting, and Clippy
+npm test
+npm run test:claims
+npm run check
+npm run lint
 npm run build
-npm run test:package # package and inspect the VS Code extension consumer
-npm run test:e2e     # desktop/mobile browser, keyboard, accessibility, privacy
-npm run test:pwa     # update and offline-demo behavior
-npm run test:coherence # fresh-connection lifecycle
-cargo test azure_files_lock_does_not_kill_startup_during_wal_configuration_regression
-docker build -t code-lesson-checkpoints .
-docker run --rm -p 8080:8080 code-lesson-checkpoints
+npm run test:package
+npm run test:e2e
+npm run test:pwa
+npm run test:load
 ```
 
-The complete API integration test creates a lesson, opens it as the learner, submits redacted evidence, reads it through the private tutor link, and deletes it. [`.factory/claims.json`](.factory/claims.json) maps each public claim to one exact browser/API regression, and [`.factory/demo.md`](.factory/demo.md) documents the clean demo entry point.
-
-## VS Code companion
-
-The compiled extension entry is `extension/dist/extension.js`. For local development, open the repository in VS Code and use an Extension Development Host with `extension/` as the extension root, or package that folder with `@vscode/vsce`. The learner invokes **Code Lesson: Connect to Lesson**, enters the six-character code, and then uses **Code Lesson: Open Checkpoints**.
+Each public promise and its independent command are listed in [`.factory/claims.json`](.factory/claims.json).
+The isolated sample is documented in [`.factory/demo.md`](.factory/demo.md).
 
 ## Privacy and product boundaries
 
-Source files are never requested or uploaded. The relay stores lesson titles, optional learner names, checkpoint definitions, selected output, notes, replies, and timestamps. Tutors can permanently delete the complete record. See `/privacy` and `/terms` in the running product. This is not a remote desktop, browser IDE, monitoring recorder, automated grader, or code generator.
+Source files are never requested or uploaded. Learners approve every shared run.
+The service stores lesson steps, selected output, notes, replies, and timestamps.
+Tutors can permanently delete the complete lesson record.
 
-The generated hero illustration is original project artwork; prompt and provenance are recorded in [`.factory/design.md`](.factory/design.md) and `assets/src/hero-paper-path.json`.
+This product is not remote desktop software, a recorder, an automated grader, or a code generator.
+Read the live [privacy notice](https://code-lesson-checkpoints.sociobot.in/privacy) and [terms](https://code-lesson-checkpoints.sociobot.in/terms).
 
-## Deployment
+The paper-path illustration was generated for this product. Its prompt and provenance are in [`.factory/design.md`](.factory/design.md).
 
-The multi-stage Dockerfile compiles both frontend and Rust service, runs as a non-root user on port 8080, and creates a writable `/data` directory. [`deployment/container-app.json`](deployment/container-app.json) mounts the product-owned `sf-code-lesson-checkpoints-data` share at `/data` and pins the service to one replica. Lesson records, tutor authorization hashes, deletion, and demo workspaces persist in `/data/checkpoints.db`. SQLite uses rollback-journal (`DELETE`) mode rather than WAL. The one-replica deployment retires stale mounted revisions before a new candidate starts, which lets the product safely recover from an Azure Files advisory lock without risking a second writer. API reads are capped per client, and writes use a stricter per-client allowance. Rate-limit responses include `Retry-After`.
+## Deploy
 
-The only release command is `scripts/deploy-release.sh <full-commit-sha>`. It builds the immutable image, applies and reads back the one-replica `/data` mount, writes a canary, restarts the revision, verifies the canary after restart, and runs repeated fresh-connection lifecycle checks. `BASE_URL=https://code-lesson-checkpoints.sociobot.in EXPECTED_BUILD_SHA=<commit> COHERENCE_CYCLES=4 npm run test:coherence` repeats the public probe. DNS, durable-share provisioning, and billing registration remain factory-managed outside this repository.
+Build the multi-stage image with `docker build -t code-lesson-checkpoints .`.
+The factory release command is `scripts/deploy-release.sh <full-commit-sha>`.
+Deployment configuration lives in [`deployment/container-app.json`](deployment/container-app.json).
 
 ## License
 

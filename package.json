@@ -5,8 +5,9 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build && npm run build:extension",
+    "build": "npm run build:extension && npm run build:vsix && vite build",
     "build:extension": "rm -rf extension/dist && tsc -p extension/tsconfig.json",
+    "build:vsix": "mkdir -p public/downloads && cd extension && vsce package --no-dependencies --out ../public/downloads/code-lesson-checkpoints-0.1.0.vsix",
     "test": "npm run test:unit && cargo test",
     "test:unit": "vitest run --config vitest.config.ts",
     "test:e2e": "node tests/browser-smoke.mjs",
@@ -28,6 +29,7 @@
     "@axe-core/playwright": "^4.10.2",
     "@types/node": "22.15.3",
     "@types/vscode": "1.98.0",
+    "@vscode/vsce": "^3.6.2",
     "jsdom": "26.1.0",
     "playwright": "1.58.2",
     "sharp": "^0.35.4",

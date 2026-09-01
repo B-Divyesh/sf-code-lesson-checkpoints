@@ -1,58 +1,86 @@
 [
   {
     "id": "demo-isolation",
-    "claim": "Try it with sample data opens a separate 24-hour workspace without changing real browser or lesson data.",
+    "claim": "The one-click sample has three checkpoints, passed and blocked runs, hidden sample credentials, a note, and a tutor reply in a separate 24-hour workspace.",
     "where": "landing primary action, demo banner, README",
     "test": "npm run test:claims -- --grep @claim:demo-isolation",
-    "sandbox": "fresh 390px browser context; seed sentinel real keys; open /demo; assert only demo:clc:workspace changes; reset and assert a new workspace id"
+    "sandbox": "fresh 390px browser context with real sentinel keys; enter /?demo=1; assert every sample element, expiry, reset deletion, Start for real, and unchanged real keys"
+  },
+  {
+    "id": "lesson-workflow",
+    "claim": "Tutors add ordered commands or tests; learners copy them, share ordered attempts, and tutors reply to the first blocked checkpoint.",
+    "where": "landing How it works, lesson views, README",
+    "test": "npm run test:claims -- --grep @claim:lesson-workflow",
+    "sandbox": "fresh three-checkpoint lesson; submit passed then blocked attempts; copy a command; assert checkpoint order, first-block indicator, attempt order, exact reply, and cleanup"
   },
   {
     "id": "consented-redacted-evidence",
-    "claim": "Learners share only consented status, selected output, and an optional note; common secrets are redacted and output is capped at 8,000 characters.",
-    "where": "landing, lesson form, evidence dialog, privacy page, README",
+    "claim": "Learners share only approved status, selected output, and an optional note; common keys are hidden and output is capped at 8,000 characters.",
+    "where": "landing, lesson form, privacy, README",
     "test": "npm run test:claims -- --grep @claim:consented-redacted-evidence",
-    "sandbox": "fresh synthetic lesson; reject unconsented evidence; submit a credential plus 8,100 characters; assert stored redaction, cap, note, tutor reply, and cleanup"
+    "sandbox": "fresh synthetic lesson; reject missing consent and a wrong tutor token; submit a credential plus 8,100 characters; assert stored redaction, cap, note, reply, and cleanup"
   },
   {
     "id": "offline-demo-reload",
     "claim": "The sample lesson reloads offline after its first visit.",
     "where": "README and demo behavior",
     "test": "npm run test:claims -- --grep @claim:offline-demo-reload",
-    "sandbox": "fresh browser context; register service worker; load /demo; set that context offline; reload and assert the sample plus visible offline state"
+    "sandbox": "fresh browser context; register the service worker; load /?demo=1; set only that context offline; reload and assert the sample and offline state"
   },
   {
     "id": "json-export",
     "claim": "Tutors can export a lesson record as JSON.",
     "where": "tutor and demo toolbars, pricing, README",
     "test": "npm run test:claims -- --grep @claim:json-export",
-    "sandbox": "fresh /demo workspace; download JSON; parse it and assert the sample title, three checkpoints, and blocked evidence"
+    "sandbox": "fresh demo workspace; download JSON; parse it and assert the sample title, three checkpoints, and blocked attempt"
   },
   {
     "id": "paid-team-checkout",
-    "claim": "Pair is free and Team archive is a $39 one-time purchase through the Sociobot hosted checkout.",
+    "claim": "Lesson planning is free; Team archive costs $39 once through Sociobot’s hosted checkout, with no embedded payment provider.",
     "where": "pricing, terms, README",
     "test": "npm run test:claims -- --grep @claim:paid-team-checkout",
-    "sandbox": "fresh pricing page; assert price and one-time copy; request the advertised checkout without following it; assert 303 to checkout.dodopayments.com"
+    "sandbox": "fresh pricing page; assert exact copy and checkout redirect; scan built assets and requests for direct payment-provider embeds"
   },
   {
-    "id": "no-tracking",
-    "claim": "No advertising trackers or third-party analytics run in the public or demo flow, and no source-file upload is offered.",
-    "where": "landing footer, privacy page, README",
-    "test": "npm run test:claims -- --grep @claim:no-tracking",
-    "sandbox": "fresh browser context; record every request across / and /demo; assert same-origin only and no file input"
+    "id": "license-restore",
+    "claim": "A buyer can restore a valid Team archive license, which is rechecked at most once per day and removed when invalid.",
+    "where": "pricing, privacy",
+    "test": "npm run test:claims -- --grep @claim:license-restore",
+    "sandbox": "fresh browser context with fixture verification responses; assert checkout return, URL stripping, manual restore, daily cache, and invalid-token removal"
   },
   {
     "id": "team-roster-history",
-    "claim": "Team archive shows a searchable learner roster and the saved lesson history held on this device.",
-    "where": "Team archive pricing, Team archive page, terms, README",
+    "claim": "Team archive searches and reopens private tutor links saved on that device.",
+    "where": "pricing, Team archive, terms, README",
     "test": "npm run test:claims -- --grep @claim:team-roster-history",
-    "sandbox": "fresh browser context with a synthetic cached Team license and three local lesson-link records; load /team, search by learner and lesson, then reload to assert the saved history remains visible"
+    "sandbox": "fresh browser context with a fixture license and three local tutor links; search by learner and lesson, open the matching URL, then reload to assert persistence"
+  },
+  {
+    "id": "privacy-boundaries",
+    "claim": "No advertising trackers, third-party analytics, source upload, screen capture, or remote-control feature runs in the public or demo flow.",
+    "where": "landing, privacy, README",
+    "test": "npm run test:claims -- --grep @claim:privacy-boundaries",
+    "sandbox": "fresh browser context; record all public/demo requests; assert same-origin only, no file input or media capture, and no tracking or remote-control SDK in built assets"
   },
   {
     "id": "permanent-lesson-deletion",
     "claim": "A tutor can permanently delete a lesson and all of its checkpoints, runs, notes, and replies.",
-    "where": "tutor delete confirmation, privacy page, README",
+    "where": "tutor delete confirmation, privacy, README",
     "test": "npm run test:claims -- --grep @claim:permanent-lesson-deletion",
-    "sandbox": "fresh synthetic lesson with a consented run and tutor reply; delete with its private tutor token; assert both learner and tutor reads return 404"
+    "sandbox": "fresh lesson with an approved run and tutor reply; delete with its private tutor token; assert learner and tutor reads both return 404"
+  },
+  {
+    "id": "vscode-companion-download",
+    "claim": "Learners can download an installable VS Code companion that shows each command before running it locally and asks before sharing results.",
+    "where": "landing How it works, join page, README",
+    "test": "npm run test:claims -- --grep @claim:vscode-companion-download",
+    "sandbox": "fresh built app; download the versioned VSIX; inspect its manifest and compiled entry; assert command confirmation, local execution, capped redaction, and share confirmation"
+  },
+  {
+    "id": "original-artwork",
+    "claim": "The paper-path illustration was generated for this product.",
+    "where": "footer, README",
+    "test": "npm run test:claims -- --grep @claim:original-artwork",
+    "sandbox": "clean checkout; assert the dated prompt/provenance record, original source image, and shipped AVIF, WebP, and social derivatives"
   }
 ]

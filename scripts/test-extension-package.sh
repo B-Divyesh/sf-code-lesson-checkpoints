@@ -10,7 +10,7 @@ consumer="$package_dir/consumer"
 npm --prefix "$repo_dir" run build:extension
 (
   cd "$repo_dir/extension"
-  npx --yes @vscode/vsce@3.6.2 package --no-dependencies --out "$package"
+  "$repo_dir/node_modules/.bin/vsce" package --no-dependencies --out "$package"
 )
 unzip -q "$package" -d "$consumer"
 
