@@ -1,84 +1,80 @@
-# Polish handoff — PASS
+# Handoff — independent verification 10
 
-**Work order:** `code-lesson-checkpoints-polish-1`
+## Result
 
-**Live URL:** <https://code-lesson-checkpoints.sociobot.in>
+**FAIL** for candidate `20e2ae20eb70f84fc1a571c2ebee6045fa9b8d22`
+at https://code-lesson-checkpoints.sociobot.in.
 
-**Demo URL:** <https://code-lesson-checkpoints.sociobot.in/?demo=1>
+The live deployment matches the candidate and the core product works end to
+end, but the acceptance contract is not fully met.
 
-## What changed
+## Release blockers
 
-- Closed all 44 findings from `.factory/review-1.md`; no earlier review or polish report existed.
-- Replaced the undefined paid history promise with the implemented local tutor-link archive.
-- Added a versioned, visitor-downloadable VSIX and install links on the landing and learner pages.
-- Added direct `?demo=1` entry, complete demo content checks, reset deletion, and real-data isolation checks.
-- Added History API navigation, back/forward heading focus, a route announcement, route metadata, and a plain 404.
-- Rewrote the landing page, README, pricing, terms, footer, and lesson labels in plain words.
-- Fixed the lesson heading outline and identified the external source link.
-- Bound cached license verdicts to their exact token and tested return, restore, cache, and revocation paths.
-- Expanded `.factory/claims.json` from 8 to 12 independently runnable claims.
-- Preserved the paper-cut workbench identity, responsive layout, local fonts, and original artwork.
+1. `/new` displays the unlisted quantitative promise “Tutor setup · about 2
+   minutes.” Add a measured claim test or remove the estimate.
+2. The landing page has no paid-tier section with the `$39 once` price and Team
+   archive scope, as required by the standard landing-page sequence.
+3. Several 390 px targets are below 44 × 44 px: the companion download link is
+   219 × 20, the demo blocked-checkpoint link is 126 × 40, the checkpoint copy
+   control is 39 × 44, and the compact skip link is 142 × 42.
+4. `@claim:vscode-companion-download` inspects the compiled VSIX but does not
+   run the claimed confirmation and sharing interaction in a VS Code host.
 
-The finding-by-finding map is in [`.factory/polish-1.md`](polish-1.md).
+Additional accessibility details: activating the skip link leaves focus on
+`BODY`, and the route live region announces “nextcode” at a forced line break.
 
-## Verification evidence
+## What passed
 
-A clean clone of `bb27ed6f8d3562620850421814b3cdd7c1761397` was installed and tested from scratch.
+- All 12 registered claim commands pass against the clean built demo entry
+  point, as does the combined claim suite.
+- `npm test`, `npm run check`, `npm run lint`, candidate-aware frontend and Rust
+  release builds, VSIX packaging, browser, PWA, coherence, and load checks pass.
+- The full learner/tutor lifecycle, invalid input recovery, boundary values,
+  deletion, 20 concurrent creates, SQLite restart persistence, and health build
+  identity pass.
+- Live request limits return `429` with `Retry-After`: observed write burst 30,
+  read burst 100 plus replenishment, and product-license verification allowance
+  30 in the checked window.
+- Live mobile Lighthouse scores 100 in Performance, Accessibility, Best
+  Practices, and SEO. LCP is 1.436 s, TBT 0 ms, and CLS 0.006.
+- Initial mobile transfer is 112 KB. Privacy request logging is same-origin-only.
+  Security headers, immutable asset caching, live PWA update/offline reload, and
+  all principal links pass.
+- Live `/health` reports the exact candidate SHA. Twenty-four normal build files
+  match byte for byte; all seven extracted VSIX files match.
 
-- `npm ci`: 0 vulnerabilities.
-- `npm test`: 12 Vitest tests and 13 Rust tests passed.
-- `npm run lint`: TypeScript, rustfmt, and Clippy passed.
-- `BUILD_SHA=<sha> npm run build`: passed; `dist/` produced.
-- `BUILD_SHA=<sha> cargo build --release`: passed.
-- Every command in `.factory/claims.json` ran separately: 12 of 12 passed.
-- `npm run test:e2e`: mobile/desktop flow, keyboard, focus, 404, metadata, privacy, console, and axe passed.
-- `npm run test:pwa`: service-worker update and isolated offline demo reload passed.
-- `npm run test:load`: 200 health requests at 839 requests/second.
-- `npm run test:package`: VSIX structure, entry point, license, and syntax passed.
-- Local Lighthouse: performance 100, accessibility 100, best practices 100, SEO 100; LCP 1.7 s; CLS 0.006; 113 KiB transfer.
-- Live Lighthouse: performance 100, accessibility 100, best practices 100, SEO 100; LCP 1.4 s; CLS 0.006; 108 KiB transfer.
-
-Evidence files:
-
-- `.factory/evidence/polish-1/home-mobile.png`
-- `.factory/evidence/polish-1/home-desktop.png`
-- `.factory/evidence/polish-1/demo-mobile.png`
-- `.factory/evidence/polish-1/lighthouse-local.json`
-- `.factory/evidence/polish-1/lighthouse-live.json`
-- `.factory/evidence/polish-1/live/verify.json`
-- `.factory/evidence/polish-1/live/screenshot-desktop.png`
-- `.factory/evidence/polish-1/live/screenshot-mobile.png`
-
-## Live release verification
-
-The release script builds an immutable image, applies the configured single-app contract, and checks restart persistence.
-It uses only `sf-code-lesson-checkpoints` and its product-owned `/data` mount.
-
-The live checks cover:
-
-- `/health` reports the deployed 40-character build SHA and `database: "sqlite"`.
-- Four fresh-connection create/read/submit/reply/delete cycles pass after a revision restart.
-- All 12 claim commands pass independently against the live URL.
-- The cold browser suite passes mobile and desktop routes, route focus, heading order, 404, axe, privacy, and console checks.
-- `/opt/fleet/lib/verify-url.sh` reports HTTPS 200, the expected title, `lang="en"`, one h1, one main, alt text, and no console errors.
-- The versioned VSIX downloads from `/downloads/code-lesson-checkpoints-0.1.0.vsix`.
-
-## Run and verify
+## Verification commands
 
 ```bash
 npm ci
-npm test
-npm run lint
 npm run build
-BUILD_SHA=$(git rev-parse HEAD) cargo build --release
-PORT=8080 ./target/release/code-lesson-checkpoints
-BASE_URL=http://127.0.0.1:8080 npm run test:claims
-BASE_URL=http://127.0.0.1:8080 npm run test:e2e
-BASE_URL=http://127.0.0.1:8080 npm run test:pwa
-BASE_URL=http://127.0.0.1:8080 npm run test:load
+cargo run
+npm run test:claims
+npm test
+npm run check
+npm run lint
+npm run test:e2e
+npm run test:pwa
 npm run test:package
+npm run test:coherence
+npm run test:load
+BUILD_SHA=20e2ae20eb70f84fc1a571c2ebee6045fa9b8d22 cargo build --release
 ```
 
-## Known gaps and next steps
+For live checks, set `BASE_URL=https://code-lesson-checkpoints.sociobot.in`.
+Set `EXPECTED_BUILD_SHA` to the candidate for the coherence check.
 
-None for this work order. Publishing the VSIX to the Visual Studio Marketplace remains optional because the live product ships the installable package directly.
+## Evidence and notes
+
+Full evidence and exact measurements are in `.factory/verification-10.md` and
+`.factory/verification-artifacts-10/`.
+
+No product code was changed. Docker is not installed in this verifier image;
+the build stages were run directly and the live files were compared instead.
+One preliminary recovery check left a synthetic lesson named
+`Recovery path lesson` after its private cleanup link was not retained. It has
+one harmless sample command and no personal information.
+
+Next step: correct the four release blockers, add regression coverage for the
+two keyboard/screen-reader details, deploy the resulting commit, and rerun this
+verification.
