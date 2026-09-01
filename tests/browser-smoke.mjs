@@ -164,6 +164,55 @@ try {
     await assertAccessible(page, route);
   }
 
+  // WCAG text resize must not remove header actions. The previous mobile
+  // header became 442 px wide and clipped Plan a lesson by 52 px on every
+  // principal route when the root text size doubled.
+  const resizedContext = await browser.newContext({ viewport: { width: 390, height: 844 } });
+  const resizedPage = await resizedContext.newPage();
+  const principalRoutes = ['/', '/demo', '/join', '/new', '/pricing', '/team', '/privacy', '/terms'];
+  const expectedHeaderLinks = ['/', '/demo', '/join', '/pricing', '/new'];
+  for (const route of principalRoutes) {
+    const response = await resizedPage.goto(`${baseURL}${route}`, { waitUntil: 'networkidle' });
+    assert.equal(response?.status(), 200, `200% text ${route} response status`);
+    await resizedPage.locator('html').evaluate((html) => { html.style.fontSize = '32px'; });
+    await resizedPage.evaluate(() => scrollTo(0, 0));
+
+    const layout = await resizedPage.evaluate(() => ({
+      viewportWidth: innerWidth,
+      bodyWidth: document.body.scrollWidth,
+      documentWidth: document.documentElement.scrollWidth,
+      links: [...document.querySelectorAll('header a')].map((link) => {
+        const box = link.getBoundingClientRect();
+        const centre = document.elementFromPoint(box.left + (box.width / 2), box.top + (box.height / 2));
+        return {
+          href: link.getAttribute('href'),
+          label: link.getAttribute('aria-label') || link.textContent?.trim().replace(/\s+/g, ' '),
+          left: box.left,
+          right: box.right,
+          top: box.top,
+          bottom: box.bottom,
+          width: box.width,
+          height: box.height,
+          hitTarget: centre === link || link.contains(centre),
+        };
+      }),
+    }));
+
+    assert.equal(layout.bodyWidth <= layout.viewportWidth, true, `${route} body overflows at 390px and 200% text`);
+    assert.equal(layout.documentWidth <= layout.viewportWidth, true, `${route} document overflows at 390px and 200% text`);
+    assert.deepEqual(layout.links.map((link) => link.href), expectedHeaderLinks, `${route} keeps every shared-header action at 200% text`);
+    for (const link of layout.links) {
+      assert.ok(link.left >= 0 && link.right <= layout.viewportWidth, `${route} clips ${link.label} at 200% text`);
+      assert.ok(link.top >= 0 && link.bottom <= 844, `${route} places ${link.label} outside the viewport at 200% text`);
+      assert.ok(link.width >= 44 && link.height >= 44, `${route} gives ${link.label} a target smaller than 44px at 200% text`);
+      assert.equal(link.hitTarget, true, `${route} makes ${link.label} unavailable to a pointer at 200% text`);
+      const target = resizedPage.locator(`header a[href="${link.href}"]`);
+      await target.focus();
+      assert.equal(await target.evaluate((element) => document.activeElement === element), true, `${route} makes ${link.label} unavailable to keyboard focus at 200% text`);
+    }
+  }
+  await resizedContext.close();
+
   // A license returned from hosted checkout must update this first pricing
   // render. Previously it was stored and verified but still showed Buy until
   // the tutor manually refreshed the page.

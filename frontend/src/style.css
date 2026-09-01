@@ -317,11 +317,11 @@ dialog::backdrop { background: rgba(23,31,24,.72); }
 
 @media (max-width: 680px) {
   .site-header, .main, .main.compact, footer { width: min(100% - 32px, 1200px); }
-  .site-header { min-height: 78px; }
-  .site-header nav { gap: 8px; }
-  .site-header nav > a:not(.header-action):not([href='/pricing']) { display: none; }
-  .site-header nav a[href='/pricing'] { padding: 0 4px; }
-  .site-header .header-action { padding: 0 12px; }
+  .site-header { min-height: 78px; padding: 12px 0 16px; align-items: stretch; flex-direction: column; gap: 8px; }
+  .brand { align-self: flex-start; }
+  .site-header nav { width: 100%; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+  .site-header nav a { min-width: 0; padding: 0 4px; justify-content: center; text-align: center; }
+  .site-header .header-action { padding: 0 8px; }
   .demo-banner { width: min(100% - 16px, 1200px); align-items: stretch; flex-direction: column; gap: 6px; }
   .demo-banner > div { justify-content: space-between; }
   .demo-banner > div:first-child { display: block; }
