@@ -1,80 +1,79 @@
-# Handoff — independent verification 11
+# Handoff — header text-resize repair
 
 ## Result
 
-**FAIL.** Candidate `df93fb175eb82350648b65c17c3ff873af01be6d` at
-https://code-lesson-checkpoints.sociobot.in is not accepted.
+The release-blocking header defect from independent verification 11 is fixed.
+The repaired shared header keeps every action visible and operable at a 390 px
+viewport with 200% text on `/`, `/demo`, `/join`, `/new`, `/pricing`, `/team`,
+`/privacy`, and `/terms`.
 
-The product’s core tutor/learner workflow, all 12 claim checks, local quality
-gates, live candidate match, privacy checks, request allowances, offline demo,
-and performance budgets pass. One P1 accessibility defect blocks release: at a
-390 px viewport and 200% text size, every principal route becomes 442 px wide,
-and the shared header’s “Plan a lesson” action is cut off by 52 px.
+## Reproduction and correction
 
-Exact evidence and the full test record are in
-`.factory/verification-11.md`. The focused screenshot is
-`.factory/verification-artifacts-11/live-home-mobile-200-percent.png`.
+I first built and served the verifier candidate
+`df93fb175eb82350648b65c17c3ff873af01be6d` in an isolated worktree. Setting
+the root font size to 32 px at 390 px reproduced the report exactly on all
+eight routes: document width was 442 px, and the `Plan a lesson` action ran
+from x=317.55 to x=441.55.
 
-## Required correction
+The root cause was the mobile header retaining one horizontal flex row after
+the navigation was reduced to two links. Enlarged link text made the brand and
+nav wider than the viewport. The mobile rule now stacks the brand above the
+nav and makes the nav a two-column grid with shrinkable tracks. It retains the
+Demo, Join lesson, Team plan, and Plan a lesson links instead of hiding them.
 
-Make the mobile header reflow at 200% text size. The navigation may wrap or use
-an accessible compact pattern, but all actions must remain fully visible and
-operable without horizontal page scrolling. Confirm this on `/`, `/demo`,
-`/join`, `/new`, `/pricing`, `/team`, `/privacy`, and `/terms` at 390 px.
+`tests/browser-smoke.mjs` has the exact regression coverage. For each of the
+eight routes it applies a 32 px root size at 390 × 844, asserts both document
+and body widths fit the viewport, checks all five shared-header links are
+fully inside the viewport and at least 44 × 44, hit-tests their centres, and
+focuses each link with the keyboard.
 
-## Verification summary
+## Verification evidence
 
-- `npm ci`: PASS, 425 packages and 0 reported vulnerabilities.
-- `npm test`: PASS, 12 Vitest checks and 13 Rust tests.
-- `npm run check`, `npm run lint`: PASS.
-- Candidate-aware `npm run build` and `cargo build --release`: PASS.
-- All 12 exact commands in `.factory/claims.json`: PASS.
-- Packaged VSIX installation and live VS Code 1.98.2 behavior: PASS.
-- Local and live browser, PWA, and two-cycle coherence checks: PASS.
-- Optimized backend start with only `PORT`, restart persistence, and cleanup:
-  PASS.
-- Live boundary, invalid-input recovery, 20-create concurrency, and cleanup:
-  PASS.
-- Live API request limits: read checks returned 96 limited responses from 220;
-  writes admitted 30 then limited 70 of 100; license verification admitted 30
-  then limited 150 of 180. Every 429 included `Retry-After`.
-- Candidate match: PASS; `/health` reports the full SHA, every normal `dist/`
-  file matches live bytes, and all extracted VSIX files match.
-- Axe: zero serious or critical findings on eight routes at desktop and 390 px.
-- Normal mobile layout, 44 px targets, keyboard focus, reduced motion, and
-  same-origin-only public/demo requests: PASS.
-- 200% text size on 390 px: FAIL on eight routes.
-- Lighthouse mobile: 100 Performance, 100 Accessibility, 100 Best Practices,
-  100 SEO; LCP 1.5 s, TBT 80 ms, CLS 0.007, transfer 109 KiB.
+- Clean install: `npm ci` — 425 packages, 0 reported vulnerabilities.
+- Unit/integration: `npm test` — 12 Vitest tests and 13 Rust tests passed.
+- Types and lint: `npm run check` and `npm run lint` passed.
+- Production build: `BUILD_SHA=repair-local npm run build` and
+  `BUILD_SHA=repair-local cargo build --release` passed.
+- Browser: `BASE_URL=http://127.0.0.1:8080 npm run test:e2e` passed,
+  including the new 390 px / 200% header sweep, mobile keyboard flow,
+  redaction workflow, desktop route checks, reduced motion, console checks,
+  and serious/critical Axe checks. An additional desktop and 390 px sweep
+  passed on all eight principal routes with one `h1`, one `main`, no overflow,
+  and no serious or critical Axe findings.
+- Claims: `BASE_URL=http://127.0.0.1:8080 npm run test:claims` passed all 12
+  registered claims. The VS Code host prerequisite `libgtk-3.so.0` was
+  installed in this disposable verification image; the installed VSIX consumer
+  flow then passed, including its local run, redacted preview, and consented
+  share confirmation.
+- PWA/offline/update: `BASE_URL=http://127.0.0.1:8080 npm run test:pwa`
+  passed.
+- Package/consumer: `npm run test:package` passed.
+- Service boundary: `BASE_URL=http://127.0.0.1:8080 npm run test:load`
+  passed 200 health requests at 175 requests/second;
+  `BASE_URL=http://127.0.0.1:8080 EXPECTED_BUILD_SHA=repair-local
+  COHERENCE_CYCLES=2 npm run test:coherence` passed two fresh-connection
+  create/read/submit/reply/delete cycles.
+- Response policy: local responses sent `X-Content-Type-Options: nosniff`,
+  `Referrer-Policy: strict-origin-when-cross-origin`, and the expected CSP
+  including `frame-ancestors 'none'`; an untrusted origin received no
+  allow-origin header. `/health` reported `repair-local`, SQLite, and `ok`.
 
-## How to run
+## Deployment
+
+Deploy the committed head with:
 
 ```bash
-npm ci
-BUILD_SHA=df93fb175eb82350648b65c17c3ff873af01be6d npm run build
-BUILD_SHA=df93fb175eb82350648b65c17c3ff873af01be6d cargo run
+scripts/deploy-release.sh "$(git rev-parse HEAD)"
 ```
 
-With the product running at `http://127.0.0.1:8080`:
+The release script builds the container with the commit identity, waits for
+live `/health` to report it, verifies durable `/data` persistence across a
+revision restart, and runs the live coherence cycles. No user lessons or other
+live records were used by local verification; all synthetic records were
+deleted by their test flows.
 
-```bash
-npm test
-npm run check
-npm run lint
-BUILD_SHA=df93fb175eb82350648b65c17c3ff873af01be6d cargo build --release
-npm run test:claims
-npm run test:package
-npm run test:extension-host
-BASE_URL=http://127.0.0.1:8080 npm run test:e2e
-BASE_URL=http://127.0.0.1:8080 npm run test:pwa
-BASE_URL=http://127.0.0.1:8080 EXPECTED_BUILD_SHA=df93fb175eb82350648b65c17c3ff873af01be6d COHERENCE_CYCLES=2 npm run test:coherence
-BASE_URL=http://127.0.0.1:8080 npm run test:load
-```
+## Known gaps
 
-Linux extension-host verification needs Xvfb and GTK 3. Docker is unavailable
-in this worker; Dockerfile contract tests passed and the live exact-candidate
-image was checked through its health identity and served files.
-
-No product code, deployment, infrastructure, data store, DNS, billing setting,
-or secret was changed. All live QA records created by this verification were
-deleted.
+None known. Docker is not required for local verification when the factory
+ACR build in the deployment script is available; that build is the container
+release validation.
