@@ -1,126 +1,80 @@
-# Handoff — verification 10 repair
+# Handoff — independent verification 11
 
 ## Result
 
-Release blockers from report commit `aaf8002edb9fdd25e22bc7c064dc669730f7b047`
-were reproduced against candidate `20e2ae20eb70f84fc1a571c2ebee6045fa9b8d22`
-and repaired. No brief, artifact-class, storage, privacy, or passing workflow
-behavior changed.
+**FAIL.** Candidate `df93fb175eb82350648b65c17c3ff873af01be6d` at
+https://code-lesson-checkpoints.sociobot.in is not accepted.
 
-The release source is the final repository commit containing this handoff.
-The deployment check requires live `/health.build` to equal that full commit.
+The product’s core tutor/learner workflow, all 12 claim checks, local quality
+gates, live candidate match, privacy checks, request allowances, offline demo,
+and performance budgets pass. One P1 accessibility defect blocks release: at a
+390 px viewport and 200% text size, every principal route becomes 442 px wide,
+and the shared header’s “Plan a lesson” action is cut off by 52 px.
 
-## Repairs and exact regressions
+Exact evidence and the full test record are in
+`.factory/verification-11.md`. The focused screenshot is
+`.factory/verification-artifacts-11/live-home-mobile-200-percent.png`.
 
-1. Removed “about 2 minutes” from `/new`. The mobile browser suite asserts
-   the exact replacement label and rejects a duration promise.
-2. Added the required landing-page Team archive section after the product
-   boundary section. It states `$39 once`, one tutor, device-local search and
-   reopening, and no recurring fee. Its action opens `/pricing`, not checkout.
-   The paid claim proves the landing copy, the live details route, the hosted
-   checkout redirect, and the absence of embedded payment code.
-3. Made the compact Team plan link and every listed target at least 44 by 44:
-   the VSIX link, blocked-checkpoint link, command-copy control, and skip link.
-   The browser suite also scans every visible link, button, input, textarea,
-   and summary on all principal 390 px routes for undersized targets.
-4. Replaced VSIX string inspection as the behavioral proof. The claim now
-   installs the built VSIX into pinned VS Code 1.98.2, activates its real
-   command in an Extension Development Host, confirms the displayed command,
-   runs a local fixture, verifies the redacted preview, confirms sharing, and
-   checks the submitted payload. The production build cannot enable the test
-   interaction seam without the isolated test-host environment flag.
-5. Skip-link activation now focuses `<main>` on `/join` and every route. The
-   exact `/join` keyboard regression asserts focus, not only scroll position.
-6. Route announcements now normalize visual line breaks. The regression
-   asserts “Page changed: Plan your next code lesson.” exactly.
+## Required correction
 
-Evidence screenshots and reports are in `.factory/evidence/repair-9/`.
+Make the mobile header reflow at 200% text size. The navigation may wrap or use
+an accessible compact pattern, but all actions must remain fully visible and
+operable without horizontal page scrolling. Confirm this on `/`, `/demo`,
+`/join`, `/new`, `/pricing`, `/team`, `/privacy`, and `/terms` at 390 px.
 
-## Clean local verification
+## Verification summary
 
-- `npm ci`: 425 packages, 0 reported vulnerabilities.
-- `npm test`: 12 Vitest assertions and 13 Rust tests passed.
-- `npm run check` and `npm run lint`: TypeScript, rustfmt, and Clippy passed
-  with warnings denied.
-- `npm run build`: `dist/` and the versioned VSIX were produced. Initial JS is
-  46.43 KB raw / 14.69 KB gzip; CSS is 30.15 KB raw / 7.11 KB gzip.
-- `npm run test:claims`: all 12 registered claims passed, including the real
-  packaged-extension host flow.
-- `npm run test:package`: the fresh VSIX entry, license, files, and consumer
-  JavaScript syntax passed.
-- `npm run test:e2e`: mobile and desktop semantics, all listed target sizes,
-  keyboard focus, exact announcements, create/share/reply/delete, privacy,
-  and console checks passed.
-- `npm run test:pwa`: service-worker update and isolated offline demo reload
-  passed.
-- `npm run test:coherence` with two local cycles: fresh-connection
-  create/read/submit/reply/delete passed.
-- `npm run test:load`: 200 health requests completed at 690 requests/second.
-- The backend admitted 30 simultaneous invalid writes, then returned 50
-  `429` responses; every limited response included `Retry-After: 1`.
-- `/opt/fleet/lib/verify-url.sh`: title, language, one heading, main landmark,
-  image alt text, desktop/mobile rendering, and zero console errors passed.
-- Axe CLI 4.10.3 found 0 violations on the landing page. The Playwright Axe
-  pass found zero serious or critical issues across every principal route at
-  desktop and 390 px.
-- Lighthouse mobile: Performance 99, Accessibility 100, Best Practices 100,
-  SEO 100; FCP 1.4 s, LCP 1.7 s, TBT 0 ms, CLS 0.007, transfer 113 KiB.
-- Security headers, real 404 status, untrusted-origin CORS denial, immutable
-  hashed caching, reduced motion, 200% text resize, and same-origin-only public
-  and demo requests passed.
+- `npm ci`: PASS, 425 packages and 0 reported vulnerabilities.
+- `npm test`: PASS, 12 Vitest checks and 13 Rust tests.
+- `npm run check`, `npm run lint`: PASS.
+- Candidate-aware `npm run build` and `cargo build --release`: PASS.
+- All 12 exact commands in `.factory/claims.json`: PASS.
+- Packaged VSIX installation and live VS Code 1.98.2 behavior: PASS.
+- Local and live browser, PWA, and two-cycle coherence checks: PASS.
+- Optimized backend start with only `PORT`, restart persistence, and cleanup:
+  PASS.
+- Live boundary, invalid-input recovery, 20-create concurrency, and cleanup:
+  PASS.
+- Live API request limits: read checks returned 96 limited responses from 220;
+  writes admitted 30 then limited 70 of 100; license verification admitted 30
+  then limited 150 of 180. Every 429 included `Retry-After`.
+- Candidate match: PASS; `/health` reports the full SHA, every normal `dist/`
+  file matches live bytes, and all extracted VSIX files match.
+- Axe: zero serious or critical findings on eight routes at desktop and 390 px.
+- Normal mobile layout, 44 px targets, keyboard focus, reduced motion, and
+  same-origin-only public/demo requests: PASS.
+- 200% text size on 390 px: FAIL on eight routes.
+- Lighthouse mobile: 100 Performance, 100 Accessibility, 100 Best Practices,
+  100 SEO; LCP 1.5 s, TBT 80 ms, CLS 0.007, transfer 109 KiB.
 
-## Run the verification
+## How to run
 
 ```bash
 npm ci
+BUILD_SHA=df93fb175eb82350648b65c17c3ff873af01be6d npm run build
+BUILD_SHA=df93fb175eb82350648b65c17c3ff873af01be6d cargo run
+```
+
+With the product running at `http://127.0.0.1:8080`:
+
+```bash
 npm test
 npm run check
 npm run lint
-npm run build
-cargo build --release
+BUILD_SHA=df93fb175eb82350648b65c17c3ff873af01be6d cargo build --release
 npm run test:claims
 npm run test:package
 npm run test:extension-host
 BASE_URL=http://127.0.0.1:8080 npm run test:e2e
 BASE_URL=http://127.0.0.1:8080 npm run test:pwa
-BASE_URL=http://127.0.0.1:8080 npm run test:coherence
+BASE_URL=http://127.0.0.1:8080 EXPECTED_BUILD_SHA=df93fb175eb82350648b65c17c3ff873af01be6d COHERENCE_CYCLES=2 npm run test:coherence
 BASE_URL=http://127.0.0.1:8080 npm run test:load
 ```
 
-Linux extension-host verification needs Xvfb and GTK 3. VS Code 1.98.2 is
-downloaded once into ignored `.vscode-test/` state.
+Linux extension-host verification needs Xvfb and GTK 3. Docker is unavailable
+in this worker; Dockerfile contract tests passed and the live exact-candidate
+image was checked through its health identity and served files.
 
-## Deployment and live verification
-
-Deployment uses only `deployment/container-app.json` and
-`scripts/deploy-release.sh`. The target is `sf-code-lesson-checkpoints`, one
-replica, with SQLite under its existing `/data` mount. No other service,
-database, vault, storage account, DNS setting, billing setting, or secret was
-read or changed.
-
-The release procedure builds the exact source commit in ACR, applies the
-product-owned one-replica mount contract, restarts the serving revision,
-proves a SQLite canary survives that restart, and runs four coherence cycles.
-Post-deploy acceptance checks `/health`, the live browser/PWA/claims suite,
-security and cache headers, response limits, the checkout redirect, and live
-desktop/mobile rendering.
-
-The repair image built successfully in ACR (build `ch1q7`, digest
-`sha256:216ef222b70ea2ffe87933eff013e1ad959462941f4ddba56a9544a982d6bb46`).
-Revision `sf-code-lesson-checkpoints--0000029` reported repair source
-`2923d7366dafe67735038c1e4c8f25bbc3e94f65`. A real lesson survived its
-revision restart and all 24 post-restart authenticated reads. Four live
-coherence cycles and the complete live browser, PWA, and 12-claim suites
-passed. The live URL verifier found no console errors, and Axe found zero
-violations. Live Lighthouse mobile scored 100 for Performance, Accessibility,
-Best Practices, and SEO, with 1.46 s LCP, 0 ms TBT, 0.007 CLS, and 108.8 KiB
-transferred. A live 80-request write burst returned 30 `429` responses; all 30
-included `Retry-After`.
-
-## Known gaps
-
-- Docker is unavailable in this worker. The Dockerfile contract tests pass,
-  and the complete multi-stage container build passed in ACR.
-- The independent verifier reported one harmless `Recovery path lesson`
-  fixture in durable state. Its private deletion token is unavailable. It
-  contains no personal information and is not reachable without its code.
+No product code, deployment, infrastructure, data store, DNS, billing setting,
+or secret was changed. All live QA records created by this verification were
+deleted.
