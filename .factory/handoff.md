@@ -43,7 +43,7 @@ Evidence screenshots and reports are in `.factory/evidence/repair-9/`.
 - `npm run check` and `npm run lint`: TypeScript, rustfmt, and Clippy passed
   with warnings denied.
 - `npm run build`: `dist/` and the versioned VSIX were produced. Initial JS is
-  46.40 KB raw / 14.65 KB gzip; CSS is 30.15 KB raw / 7.11 KB gzip.
+  46.43 KB raw / 14.69 KB gzip; CSS is 30.15 KB raw / 7.11 KB gzip.
 - `npm run test:claims`: all 12 registered claims passed, including the real
   packaged-extension host flow.
 - `npm run test:package`: the fresh VSIX entry, license, files, and consumer
@@ -105,11 +105,22 @@ Post-deploy acceptance checks `/health`, the live browser/PWA/claims suite,
 security and cache headers, response limits, the checkout redirect, and live
 desktop/mobile rendering.
 
+The repair image built successfully in ACR (build `ch1q7`, digest
+`sha256:216ef222b70ea2ffe87933eff013e1ad959462941f4ddba56a9544a982d6bb46`).
+Revision `sf-code-lesson-checkpoints--0000029` reported repair source
+`2923d7366dafe67735038c1e4c8f25bbc3e94f65`. A real lesson survived its
+revision restart and all 24 post-restart authenticated reads. Four live
+coherence cycles and the complete live browser, PWA, and 12-claim suites
+passed. The live URL verifier found no console errors, and Axe found zero
+violations. Live Lighthouse mobile scored 100 for Performance, Accessibility,
+Best Practices, and SEO, with 1.46 s LCP, 0 ms TBT, 0.007 CLS, and 108.8 KiB
+transferred. A live 80-request write burst returned 30 `429` responses; all 30
+included `Retry-After`.
+
 ## Known gaps
 
-- Docker is unavailable in this worker. Both Dockerfile build stages run
-  directly, Dockerfile contract tests pass, and ACR performs the container
-  build during deployment.
+- Docker is unavailable in this worker. The Dockerfile contract tests pass,
+  and the complete multi-stage container build passed in ACR.
 - The independent verifier reported one harmless `Recovery path lesson`
   fixture in durable state. Its private deletion token is unavailable. It
   contains no personal information and is not reachable without its code.

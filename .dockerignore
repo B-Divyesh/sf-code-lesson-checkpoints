@@ -1,6 +1,7 @@
 .git
 target
 node_modules
+.vscode-test
 dist
 checkpoints.db*
 assets/src/*.png
