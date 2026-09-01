@@ -193,6 +193,15 @@ const claims = {
   '@claim:paid-team-checkout': async () => inContext(async (_context, page) => {
     const requests = [];
     page.on('request', (request) => requests.push(request.url()));
+    await page.goto(baseURL, { waitUntil: 'networkidle' });
+    await page.locator('.home-team').getByText('$39', { exact: true }).waitFor();
+    assert.equal((await page.locator('.home-team-price > p').innerText()).replace(/\s+/g, ' ').trim(), '$39 once');
+    await page.locator('.home-team').getByText('For one tutor', { exact: true }).waitFor();
+    await page.locator('.home-team').getByText('Search by learner or lesson', { exact: true }).waitFor();
+    await page.locator('.home-team').getByText('Reopen saved tutor links', { exact: true }).waitFor();
+    await page.locator('.home-team').getByText('No recurring fee', { exact: true }).waitFor();
+    assert.equal(await page.locator('.home-team a[href*="checkout"]').count(), 0, 'landing page has no unverified purchase action');
+    assert.equal(await page.locator('.home-team a[href="/pricing"]').count(), 1, 'landing page routes to complete plan details');
     await page.goto(`${baseURL}/pricing`, { waitUntil: 'networkidle' });
     await page.getByText('$39').waitFor();
     await page.getByText('One-time purchase', { exact: true }).waitFor();
@@ -348,6 +357,11 @@ const claims = {
     assert.equal(output.includes('extension-secret'), false);
     assert.match(output, /\[redacted\]/);
     assert.ok([...output].length <= 8_020);
+    execFileSync('npm', ['run', 'test:extension-host'], {
+      cwd: process.cwd(),
+      env: { ...process.env },
+      stdio: 'inherit',
+    });
   },
 
   '@claim:original-artwork': async () => {

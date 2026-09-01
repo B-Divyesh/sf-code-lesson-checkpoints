@@ -9,8 +9,28 @@ const CODE_KEY = 'codeLesson.shareCode';
 type Submission = { status: 'passed' | 'blocked' };
 type Checkpoint = { id: string; position: number; title: string; command: string; successHint?: string; submissions: Submission[] };
 type Lesson = { title: string; shareCode: string; checkpoints: Checkpoint[] };
+type InteractionHost = {
+  input(options: vscode.InputBoxOptions): Thenable<string | undefined>;
+  info(message: string, options: vscode.MessageOptions, ...items: string[]): Thenable<string | undefined>;
+  warning(message: string, options: vscode.MessageOptions, ...items: string[]): Thenable<string | undefined>;
+  pick<T extends vscode.QuickPickItem>(items: readonly T[], options: vscode.QuickPickOptions): Thenable<T | undefined>;
+};
 
-export function activate(context: vscode.ExtensionContext): void {
+const vscodeInteractionHost: InteractionHost = {
+  input: (options) => vscode.window.showInputBox(options),
+  info: (message, options, ...items) => vscode.window.showInformationMessage(message, options, ...items),
+  warning: (message, options, ...items) => vscode.window.showWarningMessage(message, options, ...items),
+  pick: (items, options) => vscode.window.showQuickPick(items, options),
+};
+let interactionHost = vscodeInteractionHost;
+
+/** Used only by the packaged-extension host test to drive real command handlers. */
+export function setInteractionHostForTesting(host?: InteractionHost): void {
+  if (process.env.CLC_EXTENSION_HOST_TEST !== '1') throw new Error('The interaction host can only change inside the packaged-extension test.');
+  interactionHost = host ?? vscodeInteractionHost;
+}
+
+export function activate(context: vscode.ExtensionContext): { setInteractionHostForTesting: typeof setInteractionHostForTesting } {
   context.subscriptions.push(
     vscode.commands.registerCommand('codeLesson.connect', () => connect(context)),
     vscode.commands.registerCommand('codeLesson.open', () => openLesson(context)),
@@ -19,10 +39,11 @@ export function activate(context: vscode.ExtensionContext): void {
       void vscode.window.showInformationMessage('Disconnected from the lesson. No project files were changed.');
     }),
   );
+  return { setInteractionHostForTesting };
 }
 
 async function connect(context: vscode.ExtensionContext): Promise<void> {
-  const code = await vscode.window.showInputBox({
+  const code = await interactionHost.input({
     title: 'Connect to a code lesson',
     prompt: 'Enter the six-character code from your tutor.',
     placeHolder: 'ABC123',
@@ -34,7 +55,7 @@ async function connect(context: vscode.ExtensionContext): Promise<void> {
   try {
     const lesson = await loadLesson(normalized);
     await context.workspaceState.update(CODE_KEY, normalized);
-    const choice = await vscode.window.showInformationMessage(`Connected to “${lesson.title}”. Commands run only after you confirm each one.`, 'Open checkpoints');
+    const choice = await interactionHost.info(`Connected to “${lesson.title}”. Commands run only after you confirm each one.`, {}, 'Open checkpoints');
     if (choice) await openLesson(context);
   } catch (error) { showError(error); }
 }
@@ -44,7 +65,7 @@ async function openLesson(context: vscode.ExtensionContext): Promise<void> {
   if (!code) { await connect(context); return; }
   try {
     const lesson = await loadLesson(code);
-    const item = await vscode.window.showQuickPick(lesson.checkpoints.map((checkpoint) => ({
+    const item = await interactionHost.pick(lesson.checkpoints.map((checkpoint) => ({
       label: `${statusIcon(checkpoint)} ${checkpoint.position}. ${checkpoint.title}`,
       description: checkpoint.command,
       detail: checkpoint.successHint ? `Success: ${checkpoint.successHint}` : 'Select to review and run locally',
@@ -60,7 +81,7 @@ async function runCheckpoint(lesson: Lesson, checkpoint: Checkpoint): Promise<vo
     void vscode.window.showErrorMessage('Open the project folder before running a checkpoint.');
     return;
   }
-  const confirmation = await vscode.window.showWarningMessage(
+  const confirmation = await interactionHost.warning(
     `Run this tutor-defined command in ${folder.name}?\n\n${checkpoint.command}`,
     { modal: true, detail: 'Review the command carefully. It runs locally with your user permissions; the relay cannot see your files.' },
     'Run locally',
@@ -85,15 +106,15 @@ async function reviewEvidence(lesson: Lesson, checkpoint: Checkpoint, initialSta
   const output = redactAndCap(raw);
   const document = await vscode.workspace.openTextDocument({ language: 'log', content: output || '(The command produced no output.)' });
   await vscode.window.showTextDocument(document, { preview: true });
-  const choice = await vscode.window.showQuickPick([
+  const choice = await interactionHost.pick([
     { label: '$(check) Passed', status: 'passed' as const },
     { label: '$(error) Blocked', status: 'blocked' as const },
     { label: 'Keep private', status: null },
   ], { title: `Review selected output · detected as ${initialStatus}`, placeHolder: 'Nothing is shared until you choose a status' });
   if (!choice?.status) return;
-  const note = await vscode.window.showInputBox({ title: 'Optional note', prompt: 'What did you expect, and what did you notice?', placeHolder: 'Leave blank to share without a note', ignoreFocusOut: true });
+  const note = await interactionHost.input({ title: 'Optional note', prompt: 'What did you expect, and what did you notice?', placeHolder: 'Leave blank to share without a note', ignoreFocusOut: true });
   if (note === undefined) return;
-  const consent = await vscode.window.showInformationMessage(
+  const consent = await interactionHost.info(
     `Share this ${choice.status} update with your tutor?`,
     { modal: true, detail: `Only the reviewed output (${output.length.toLocaleString()} characters), status, and note will be sent. No source files are attached.` },
     'Share selected evidence',
@@ -103,7 +124,7 @@ async function reviewEvidence(lesson: Lesson, checkpoint: Checkpoint, initialSta
     await request(`/api/lessons/code/${encodeURIComponent(lesson.shareCode)}/checkpoints/${encodeURIComponent(checkpoint.id)}/submissions`, {
       method: 'POST', body: JSON.stringify({ status: choice.status, output, note, consented: true }),
     });
-    void vscode.window.showInformationMessage('Checkpoint evidence shared. You kept control of the run.');
+    void interactionHost.info('Checkpoint evidence shared. You kept control of the run.', {});
   } catch (error) { showError(error); }
 }
 

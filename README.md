@@ -37,7 +37,7 @@ Download [Code Lesson Checkpoints 0.1.0](https://code-lesson-checkpoints.sociobo
 5. Run **Code Lesson: Open Checkpoints** to review a command before running it.
 
 For extension development, open this repository with `extension/` as the extension root.
-Use an Extension Development Host, or run `npm run test:package` to inspect a fresh package.
+Run `npm run test:extension-host` to install the built VSIX in VS Code 1.98.2 and exercise its complete confirmation, local-run, redaction, and sharing flow.
 
 ## Run locally
 
@@ -60,6 +60,7 @@ npm run check
 npm run lint
 npm run build
 npm run test:package
+npm run test:extension-host
 npm run test:e2e
 npm run test:pwa
 npm run test:load

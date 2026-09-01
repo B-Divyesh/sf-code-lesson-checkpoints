@@ -42,6 +42,16 @@ No landing-page unit exceeds 22 words. No unit contains a banned marketing word.
 | No remote control, keystroke recording, source collection, automated grading, or generated answers. | 12 | Pass |
 | The learner keeps the keyboard—and the context. | 8 | Pass |
 | Create your first lesson | 4 | Pass |
+| Optional Team archive | 3 | Pass |
+| Keep private tutor links together. | 5 | Pass |
+| Lesson planning and sharing stay free. | 6 | Pass |
+| Team archive searches lesson links saved on this device. | 9 | Pass |
+| $39 once | 2 | Pass |
+| For one tutor | 3 | Pass |
+| Search by learner or lesson | 5 | Pass |
+| Reopen saved tutor links | 4 | Pass |
+| No recurring fee | 3 | Pass |
+| See Team archive details | 4 | Pass |
 | Learners choose which run results to share. | 7 | Pass |
 | Paper-path artwork generated for this product. | 6 | Pass |
 | No source code is uploaded by default. | 7 | Pass |
@@ -50,7 +60,7 @@ No landing-page unit exceeds 22 words. No unit contains a banned marketing word.
 ## README check
 
 Every prose sentence is 22 words or fewer. The opening names the user, job, and first result without jargon.
-The undefined “extended history” promise and internal deployment promises were removed.
+The undefined “extended history,” setup-duration, and internal deployment promises were removed.
 
 ## Terminology
 

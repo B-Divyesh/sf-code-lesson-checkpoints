@@ -46,6 +46,21 @@ async function assertTouchTargets(target, selectors, label) {
   }
 }
 
+async function assertAllVisibleTouchTargets(target, label) {
+  const undersized = await target.locator('a, button, input, textarea, summary').evaluateAll((elements) => elements.flatMap((element) => {
+    const style = getComputedStyle(element);
+    const box = element.getBoundingClientRect();
+    if (style.display === 'none' || style.visibility === 'hidden' || element.hasAttribute('hidden')) return [];
+    if (box.width >= 44 && box.height >= 44) return [];
+    return [{
+      name: element.getAttribute('aria-label') || element.textContent?.trim().replace(/\s+/g, ' ') || element.getAttribute('name'),
+      width: box.width,
+      height: box.height,
+    }];
+  }));
+  assert.deepEqual(undersized, [], `${label} has visible interactive targets smaller than 44 by 44 pixels`);
+}
+
 try {
   await page.goto(baseURL, { waitUntil: 'networkidle' });
   assert.equal(await page.locator('html').getAttribute('lang'), 'en');
@@ -58,11 +73,21 @@ try {
   assert.equal((await page.locator('body').evaluate((body) => body.scrollWidth <= innerWidth)), true, 'home page overflows at 390px');
   await assertTouchTargets(page, [
     { selector: 'header .brand', name: 'header home link' },
+    { selector: 'header a[href="/pricing"]', name: 'Team plan link' },
     { selector: '.hero-actions a[href="/?demo=1"]', name: 'sample-data action' },
     { selector: '.hero-actions .text-link', name: 'lesson-code link' },
+    { selector: '.process a[download]', name: 'VS Code companion download' },
   ], 'mobile home');
+  assert.equal(await page.locator('.home-team').getByText('$39', { exact: true }).count(), 1, 'home includes the exact Team archive price');
+  assert.equal((await page.locator('.home-team-price > p').innerText()).replace(/\s+/g, ' ').trim(), '$39 once', 'home says the exact one-time Team archive price');
+  assert.equal(await page.locator('.home-team a[href="/pricing"]').count(), 1, 'home links to working Team archive details');
+  assert.equal(await page.locator('.home-team a[href*="checkout"]').count(), 0, 'home does not show a checkout action outside the full plan page');
+  await assertAllVisibleTouchTargets(page, 'mobile home');
   await page.keyboard.press('Tab');
   assert.equal(await page.locator('.skip-link').evaluate((element) => document.activeElement === element), true, 'keyboard reaches the skip link first');
+  await assertTouchTargets(page, [{ selector: '.skip-link', name: 'skip link' }], 'mobile keyboard');
+  await page.keyboard.press('Enter');
+  assert.equal(await page.locator('#main').evaluate((element) => document.activeElement === element), true, 'skip link moves focus to main content');
   const footerTargets = await page.locator('footer nav a').evaluateAll((links) => links.map((link) => {
     const box = link.getBoundingClientRect();
     return box.width >= 44 && box.height >= 44;
@@ -83,6 +108,11 @@ try {
   assert.equal(await page.locator('main h1').evaluate((heading) => document.activeElement === heading), true, 'Forward restores focus to the demo heading');
   await page.getByText('Demo — sample data, nothing is saved').waitFor();
   await page.getByText('First block at checkpoint 2').waitFor();
+  await assertTouchTargets(page, [
+    { selector: '.lesson-rail a[href^="#checkpoint-"]', name: 'blocked-checkpoint link' },
+    { selector: '.checkpoint:nth-child(2) .command-row .icon-button', name: 'second checkpoint copy control' },
+  ], 'mobile demo');
+  await assertAllVisibleTouchTargets(page, 'mobile demo');
   assert.equal(await page.getByText('qa_password').count(), 0, 'sample evidence contains no raw secret');
   assert.deepEqual(await page.evaluate(() => JSON.parse(localStorage.getItem('clc:archive') ?? 'null')), [{ id: 'real-record' }], 'demo leaves real archive storage untouched');
   const demoKeys = await page.evaluate(() => Object.keys(localStorage).filter((key) => key.startsWith('demo:')));
@@ -105,6 +135,8 @@ try {
   assert.notEqual(resetWorkspace, firstWorkspace, 'reset provisions a fresh isolated workspace');
   await page.getByRole('button', { name: 'Start for real' }).click();
   await page.waitForURL(`${baseURL}/new`);
+  assert.equal((await page.locator('.form-intro .eyebrow').innerText()).trim(), 'TUTOR SETUP', 'setup copy has no unmeasured duration promise');
+  assert.equal(await page.locator('#route-announcer').textContent(), 'Page changed: Plan your next code lesson.', 'route announcement preserves spaces across visual line breaks');
   assert.equal(await page.evaluate(() => localStorage.getItem('demo:clc:workspace')), null, 'leaving demo discards its local data');
   assert.deepEqual(await page.evaluate(() => JSON.parse(localStorage.getItem('clc:archive') ?? 'null')), [{ id: 'real-record' }], 'leaving demo preserves real storage');
   await page.evaluate(() => localStorage.removeItem('clc:archive'));
@@ -122,6 +154,13 @@ try {
         { selector: '.legal-callout a[href="/privacy"]', name: 'pricing privacy link' },
       ], 'mobile pricing');
     }
+    if (route === '/join') {
+      await page.keyboard.press('Tab');
+      assert.equal(await page.locator('.skip-link').evaluate((element) => document.activeElement === element), true, 'join reaches the skip link first');
+      await page.keyboard.press('Enter');
+      assert.equal(await page.locator('#main').evaluate((element) => document.activeElement === element), true, 'join skip link moves focus to main content');
+    }
+    await assertAllVisibleTouchTargets(page, `mobile ${route}`);
     await assertAccessible(page, route);
   }
 

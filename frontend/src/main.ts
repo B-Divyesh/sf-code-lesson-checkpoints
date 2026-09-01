@@ -49,7 +49,7 @@ function shell(content: string, options: { compact?: boolean; current?: string; 
     </header>
     ${options.demo ? `<aside class="demo-banner" aria-label="Sample-data demo"><div><strong>Demo — sample data, nothing is saved</strong><span>Use the tutor view without changing a real lesson.</span></div><div><button type="button" id="reset-demo">Reset demo</button><button type="button" id="start-real">Start for real</button></div></aside>` : ''}
     <div id="route-announcer" class="visually-hidden" role="status" aria-live="polite"></div>
-    <main id="main" class="${options.compact ? 'main compact' : 'main'}">${content}</main>
+    <main id="main" class="${options.compact ? 'main compact' : 'main'}" tabindex="-1">${content}</main>
     <footer>
       <p><strong>Code Lesson Checkpoints</strong><br><span>Learners choose which run results to share.</span></p>
       <nav aria-label="Legal"><a href="/privacy">Privacy</a><a href="/terms">Terms</a><a href="https://github.com/B-Divyesh/sf-code-lesson-checkpoints">Source on GitHub (external)</a></nav>
@@ -100,7 +100,7 @@ function finishRoute(description: string, canonicalPath = location.pathname): vo
   if (routeFocusRequested && heading) {
     heading.focus({ preventScroll: true });
     const announcer = document.querySelector<HTMLElement>('#route-announcer');
-    if (announcer) announcer.textContent = `Page changed: ${heading.textContent?.trim() ?? document.title}`;
+    if (announcer) announcer.textContent = `Page changed: ${heading.innerText.replace(/\s+/g, ' ').trim() || document.title}`;
     routeFocusRequested = false;
   }
   bindConnectivity();
@@ -138,6 +138,10 @@ function home(): void {
       <div class="boundary-tag">What this tool does not do</div><h2 id="boundary-title">Share lesson results, not source code.</h2>
       <p>No remote control, keystroke recording, source collection, automated grading, or generated answers. The learner keeps the keyboard—and the context.</p>
       <a class="button paper-button" href="/new">Create your first lesson</a>
+    </section>
+    <section class="home-team" aria-labelledby="home-team-title">
+      <div><p class="eyebrow"><span></span>Optional Team archive</p><h2 id="home-team-title">Keep private tutor links together.</h2><p>Lesson planning and sharing stay free. Team archive searches lesson links saved on this device.</p></div>
+      <div class="home-team-price"><p><strong>$39</strong> once</p><ul><li>For one tutor</li><li>Search by learner or lesson</li><li>Reopen saved tutor links</li><li>No recurring fee</li></ul><a class="button secondary" href="/pricing">See Team archive details</a></div>
     </section>`);
   finishRoute('Remote programming tutors add lesson steps. Learners run them locally and choose which results to share.', '/');
 }
@@ -154,7 +158,7 @@ const checkpointTemplate = (index: number, values?: { title?: string; command?: 
 function newLesson(): void {
   document.title = 'Plan a lesson — Code Lesson Checkpoints';
   app.innerHTML = shell(`
-    <section class="form-intro"><p class="eyebrow"><span></span>Tutor setup · about 2 minutes</p><h1>Plan your next<br>code lesson.</h1><p>Add the commands or tests for each lesson step. The server shows them but never runs them.</p></section>
+    <section class="form-intro"><p class="eyebrow"><span></span>Tutor setup</p><h1>Plan your next<br>code lesson.</h1><p>Add the commands or tests for each lesson step. The server shows them but never runs them.</p></section>
     <form id="lesson-form" class="lesson-form">
       <div class="form-section"><h2>Lesson details</h2><div class="two-fields"><label>Lesson title <input name="title" maxlength="100" required autofocus placeholder="Debugging the weather API"></label><label>Learner name <span class="optional">Optional</span><input name="learnerName" maxlength="80" placeholder="Sam"></label></div></div>
       <div class="form-section"><div class="section-heading"><div><h2>Lesson checkpoints</h2><p>Use commands that are safe to run from the project folder.</p></div><button type="button" class="button secondary" id="add-checkpoint">+ Add checkpoint</button></div><div id="checkpoint-list">${checkpointTemplate(0, { title: 'Run the starter tests', command: 'npm test', hint: 'The test runner starts and shows the current failures' })}${checkpointTemplate(1, { title: 'Verify the fix', command: 'npm test', hint: 'All tests pass' })}</div></div>
@@ -689,6 +693,12 @@ document.addEventListener('click', (event) => {
   if (target.origin !== location.origin || (target.pathname === location.pathname && target.search === location.search && target.hash)) return;
   event.preventDefault();
   navigate(`${target.pathname}${target.search}${target.hash}`);
+});
+document.querySelector<HTMLAnchorElement>('.skip-link')?.addEventListener('click', (event) => {
+  event.preventDefault();
+  const main = document.querySelector<HTMLElement>('#main');
+  main?.focus();
+  main?.scrollIntoView();
 });
 window.addEventListener('popstate', () => {
   routeFocusRequested = true;

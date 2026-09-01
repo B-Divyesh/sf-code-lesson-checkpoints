@@ -37,9 +37,9 @@
   {
     "id": "paid-team-checkout",
     "claim": "Lesson planning is free; Team archive costs $39 once through Sociobot’s hosted checkout, with no embedded payment provider.",
-    "where": "pricing, terms, README",
+    "where": "landing paid-tier section, pricing, terms, README",
     "test": "npm run test:claims -- --grep @claim:paid-team-checkout",
-    "sandbox": "fresh pricing page; assert exact copy and checkout redirect; scan built assets and requests for direct payment-provider embeds"
+    "sandbox": "fresh landing and pricing pages; assert the landing's exact price, archive scope, live details link, and absence of an unverified checkout action; assert the hosted checkout redirect and scan for direct payment-provider embeds"
   },
   {
     "id": "license-restore",
@@ -74,7 +74,7 @@
     "claim": "Learners can download an installable VS Code companion that shows each command before running it locally and asks before sharing results.",
     "where": "landing How it works, join page, README",
     "test": "npm run test:claims -- --grep @claim:vscode-companion-download",
-    "sandbox": "fresh built app; download the versioned VSIX; inspect its manifest and compiled entry; assert command confirmation, local execution, capped redaction, and share confirmation"
+    "sandbox": "fresh built app; download the versioned VSIX; install that artifact into VS Code 1.98.2; invoke its connect command in an Extension Development Host; assert command confirmation, real local fixture execution, redacted preview, share confirmation, and the submitted payload"
   },
   {
     "id": "original-artwork",
