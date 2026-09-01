@@ -1,0 +1,59 @@
+
+> code-lesson-checkpoints@0.1.0 test:claims
+> node tests/claims.mjs
+
+PASS @claim:demo-isolation
+PASS @claim:lesson-workflow
+PASS @claim:consented-redacted-evidence
+PASS @claim:offline-demo-reload
+PASS @claim:json-export
+PASS @claim:paid-team-checkout
+PASS @claim:license-restore
+PASS @claim:privacy-boundaries
+PASS @claim:team-roster-history
+PASS @claim:permanent-lesson-deletion
+
+> code-lesson-checkpoints@0.1.0 test:extension-host
+> xvfb-run -a node tests/vscode-host-claim.mjs
+
+- Resolving version...
+✔ Validated version: 1.98.2
+✔ Found existing install in /work/repo/.vscode-test/vscode-linux-x64-1.98.2
+- Resolving version...
+✔ Validated version: 1.98.2
+✔ Found existing install in /work/repo/.vscode-test/vscode-linux-x64-1.98.2
+[18342:0901/233221.524424:ERROR:bus.cc(407)] Failed to connect to the bus: Failed to connect to socket /run/dbus/system_bus_socket: No such file or directory
+[18342:0901/233221.569194:ERROR:node_bindings.cc(380)] Most NODE_OPTIONs are not supported in packaged apps. See documentation for more details.
+[18342:0901/233222.111880:ERROR:bus.cc(407)] Failed to connect to the bus: Failed to connect to socket /run/dbus/system_bus_socket: No such file or directory
+[18342:0901/233222.111956:ERROR:bus.cc(407)] Failed to connect to the bus: Failed to connect to socket /run/dbus/system_bus_socket: No such file or directory
+[18342:0901/233222.122912:ERROR:bus.cc(407)] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+[18342:0901/233222.122956:ERROR:bus.cc(407)] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+[18342:0901/233222.122967:ERROR:bus.cc(407)] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+[18342:0901/233222.122976:ERROR:bus.cc(407)] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+[18342:0901/233222.122989:ERROR:object_proxy.cc(576)] Failed to call method: org.freedesktop.DBus.NameHasOwner: object_path= /org/freedesktop/DBus: unknown error type: 
+[18373:0901/233222.330034:ERROR:viz_main_impl.cc(185)] Exiting GPU process due to errors during initialization
+Warning: 'cached-data' is not in the list of known options, but still passed to Electron/Chromium.
+[18393:0901/233222.545381:ERROR:viz_main_impl.cc(185)] Exiting GPU process due to errors during initialization
+[18342:0901/233222.824317:ERROR:bus.cc(407)] Failed to connect to the bus: Failed to connect to socket /run/dbus/system_bus_socket: No such file or directory
+[18342:0901/233222.824380:ERROR:bus.cc(407)] Failed to connect to the bus: Failed to connect to socket /run/dbus/system_bus_socket: No such file or directory
+[18342:0901/233222.824412:ERROR:bus.cc(407)] Failed to connect to the bus: Failed to connect to socket /run/dbus/system_bus_socket: No such file or directory
+[18416:0901/233222.831120:ERROR:viz_main_impl.cc(185)] Exiting GPU process due to errors during initialization
+[90m[main 2026-09-01T23:32:22.978Z][0m update#setState disabled
+[90m[main 2026-09-01T23:32:23.029Z][0m update#ctor - updates are disabled by the environment
+[18342:0901/233223.030564:ERROR:bus.cc(407)] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+workbench#open()
+Started local extension host with pid 18502.
+IExtensionHostStarter.start() took 101 ms.
+Loading development extension at /work/repo/tests/vscode-host-harness
+Settings Sync: Account status changed from uninitialized to unavailable
+NativeExtensionHostFactory._createLocalProcessExtensionHostDataProvider.scannedExtensions: vscode.bat,vscode.clojure,vscode.coffeescript,vscode.configuration-editing,vscode.cpp,vscode.csharp,vscode.css,vscode.css-language-features,vscode.dart,vscode.debug-auto-launch,vscode.debug-server-ready,vscode.diff,vscode.docker,vscode.emmet,vscode.extension-editing,vscode.fsharp,vscode.git,vscode.git-base,vscode.github,vscode.github-authentication,vscode.go,vscode.groovy,vscode.grunt,vscode.gulp,vscode.handlebars,vscode.hlsl,vscode.html,vscode.html-language-features,vscode.ini,vscode.ipynb,vscode.jake,vscode.java,vscode.javascript,vscode.json,vscode.json-language-features,vscode.julia,vscode.latex,vscode.less,vscode.log,vscode.lua,vscode.make,vscode.markdown,vscode.markdown-language-features,vscode.markdown-math,vscode.media-preview,vscode.merge-conflict,vscode.microsoft-authentication,ms-vscode.js-debug,ms-vscode.js-debug-companion,ms-vscode.vscode-js-profile-table,vscode.builtin-notebook-renderers,vscode.npm,vscode.objective-c,vscode.perl,vscode.php,vscode.php-language-features,vscode.powershell,vscode.pug,vscode.python,vscode.r,vscode.razor,vscode.references-view,vscode.restructuredtext,vscode.ruby,vscode.rust,vscode.scss,vscode.search-result,vscode.shaderlab,vscode.shellscript,vscode.simple-browser,vscode.sql,vscode.swift,vscode.terminal-suggest,vscode.theme-abyss,vscode.theme-defaults,vscode.theme-kimbie-dark,vscode.theme-monokai,vscode.theme-monokai-dimmed,vscode.theme-quietlight,vscode.theme-red,vscode.vscode-theme-seti,vscode.theme-solarized-dark,vscode.theme-solarized-light,vscode.theme-tomorrow-night-blue,vscode.tunnel-forwarding,vscode.typescript,vscode.typescript-language-features,vscode.vb,vscode.xml,vscode.yaml,sociobot.code-lesson-checkpoints,param-factory-tests.code-lesson-checkpoints-host-harness
+NativeExtensionHostFactory._createLocalProcessExtensionHostDataProvider.localExtensions: param-factory-tests.code-lesson-checkpoints-host-harness,vscode.bat,vscode.clojure,vscode.coffeescript,vscode.configuration-editing,vscode.cpp,vscode.csharp,vscode.css,vscode.css-language-features,vscode.dart,vscode.debug-auto-launch,vscode.debug-server-ready,vscode.diff,vscode.docker,vscode.emmet,vscode.extension-editing,vscode.fsharp,vscode.git,vscode.git-base,vscode.github,vscode.github-authentication,vscode.go,vscode.groovy,vscode.grunt,vscode.gulp,vscode.handlebars,vscode.hlsl,vscode.html,vscode.html-language-features,vscode.ini,vscode.ipynb,vscode.jake,vscode.java,vscode.javascript,vscode.json,vscode.json-language-features,vscode.julia,vscode.latex,vscode.less,vscode.log,vscode.lua,vscode.make,vscode.markdown,vscode.markdown-language-features,vscode.markdown-math,vscode.media-preview,vscode.merge-conflict,vscode.microsoft-authentication,ms-vscode.js-debug,ms-vscode.js-debug-companion,ms-vscode.vscode-js-profile-table,vscode.builtin-notebook-renderers,vscode.npm,vscode.objective-c,vscode.perl,vscode.php,vscode.php-language-features,vscode.powershell,vscode.pug,vscode.python,vscode.r,vscode.razor,vscode.references-view,vscode.restructuredtext,vscode.ruby,vscode.rust,vscode.scss,vscode.search-result,vscode.shaderlab,vscode.shellscript,vscode.simple-browser,vscode.sql,vscode.swift,vscode.terminal-suggest,vscode.theme-abyss,vscode.theme-defaults,vscode.theme-kimbie-dark,vscode.theme-monokai,vscode.theme-monokai-dimmed,vscode.theme-quietlight,vscode.theme-red,vscode.vscode-theme-seti,vscode.theme-solarized-dark,vscode.theme-solarized-light,vscode.theme-tomorrow-night-blue,vscode.tunnel-forwarding,vscode.typescript,vscode.typescript-language-features,vscode.vb,vscode.xml,vscode.yaml,sociobot.code-lesson-checkpoints
+NativeExtensionHostFactory._createLocalProcessExtensionHostDataProvider.myExtensions: param-factory-tests.code-lesson-checkpoints-host-harness,vscode.bat,vscode.clojure,vscode.coffeescript,vscode.configuration-editing,vscode.cpp,vscode.csharp,vscode.css,vscode.css-language-features,vscode.dart,vscode.debug-auto-launch,vscode.debug-server-ready,vscode.diff,vscode.docker,vscode.emmet,vscode.extension-editing,vscode.fsharp,vscode.git,vscode.git-base,vscode.github,vscode.github-authentication,vscode.go,vscode.groovy,vscode.grunt,vscode.gulp,vscode.handlebars,vscode.hlsl,vscode.html,vscode.html-language-features,vscode.ini,vscode.ipynb,vscode.jake,vscode.java,vscode.javascript,vscode.json,vscode.json-language-features,vscode.julia,vscode.latex,vscode.less,vscode.log,vscode.lua,vscode.make,vscode.markdown,vscode.markdown-language-features,vscode.markdown-math,vscode.media-preview,vscode.merge-conflict,vscode.microsoft-authentication,ms-vscode.js-debug,ms-vscode.js-debug-companion,ms-vscode.vscode-js-profile-table,vscode.builtin-notebook-renderers,vscode.npm,vscode.objective-c,vscode.perl,vscode.php,vscode.php-language-features,vscode.powershell,vscode.pug,vscode.python,vscode.r,vscode.razor,vscode.references-view,vscode.restructuredtext,vscode.ruby,vscode.rust,vscode.scss,vscode.search-result,vscode.shaderlab,vscode.shellscript,vscode.simple-browser,vscode.sql,vscode.swift,vscode.terminal-suggest,vscode.theme-abyss,vscode.theme-defaults,vscode.theme-kimbie-dark,vscode.theme-monokai,vscode.theme-monokai-dimmed,vscode.theme-quietlight,vscode.theme-red,vscode.vscode-theme-seti,vscode.theme-solarized-dark,vscode.theme-solarized-light,vscode.theme-tomorrow-night-blue,vscode.tunnel-forwarding,vscode.typescript,vscode.typescript-language-features,vscode.vb,vscode.xml,vscode.yaml,sociobot.code-lesson-checkpoints
+Creation of workbench contribution 'workbench.contrib.configurationMigration' took 105ms.
+VS Code host claim passed: installed VSIX, command confirmation, local run, redacted preview, and share confirmation.
+Extension host test runner exit code: 0
+Asking native host service to exit with code 0.
+[90m[main 2026-09-01T23:32:33.333Z][0m Extension host with pid 18502 exited with code: 0, signal: unknown.
+Exit code:   0
+PASS @claim:vscode-companion-download
+PASS @claim:original-artwork
