@@ -42,6 +42,7 @@ Run `npm run test:extension-host` to install the built VSIX in VS Code 1.98.2 an
 ## Run locally
 
 Requirements: Node 22+, npm 10+, current stable Rust, and a C toolchain.
+On Debian or Ubuntu, install `xvfb` and `libgtk-3-0` before the extension-host claim.
 
 ```bash
 npm ci
