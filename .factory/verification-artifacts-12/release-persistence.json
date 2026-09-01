@@ -1,0 +1,7 @@
+{
+  "readAfterRestart": 200,
+  "title": "Restart persistence QA",
+  "checkpointCount": 1,
+  "deleteStatus": 204,
+  "readAfterDelete": 404
+}

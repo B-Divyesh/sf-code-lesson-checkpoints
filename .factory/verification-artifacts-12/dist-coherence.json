@@ -1,0 +1,190 @@
+{
+  "files": 25,
+  "matches": 24,
+  "mismatches": [
+    {
+      "path": "/downloads/code-lesson-checkpoints-0.1.0.vsix",
+      "status": 200,
+      "bytes": 7123,
+      "liveBytes": 7123,
+      "match": false
+    }
+  ],
+  "rows": [
+    {
+      "path": "/apple-touch-icon.png",
+      "status": 200,
+      "bytes": 2402,
+      "liveBytes": 2402,
+      "match": true
+    },
+    {
+      "path": "/assets/atkinson-hyperlegible-latin-400-normal-BbWidj28.woff",
+      "status": 200,
+      "bytes": 14024,
+      "liveBytes": 14024,
+      "match": true
+    },
+    {
+      "path": "/assets/atkinson-hyperlegible-latin-400-normal-BrHNak5F.woff2",
+      "status": 200,
+      "bytes": 17208,
+      "liveBytes": 17208,
+      "match": true
+    },
+    {
+      "path": "/assets/atkinson-hyperlegible-latin-700-normal-BK6Glc0m.woff",
+      "status": 200,
+      "bytes": 14292,
+      "liveBytes": 14292,
+      "match": true
+    },
+    {
+      "path": "/assets/atkinson-hyperlegible-latin-700-normal-GZI4o3u0.woff2",
+      "status": 200,
+      "bytes": 17524,
+      "liveBytes": 17524,
+      "match": true
+    },
+    {
+      "path": "/assets/atkinson-hyperlegible-latin-ext-400-normal-Bbz-b3yf.woff",
+      "status": 200,
+      "bytes": 7356,
+      "liveBytes": 7356,
+      "match": true
+    },
+    {
+      "path": "/assets/atkinson-hyperlegible-latin-ext-400-normal-DRk46D-x.woff2",
+      "status": 200,
+      "bytes": 9384,
+      "liveBytes": 9384,
+      "match": true
+    },
+    {
+      "path": "/assets/atkinson-hyperlegible-latin-ext-700-normal-BoVPHkS0.woff2",
+      "status": 200,
+      "bytes": 9372,
+      "liveBytes": 9372,
+      "match": true
+    },
+    {
+      "path": "/assets/atkinson-hyperlegible-latin-ext-700-normal-CKkU2Dpt.woff",
+      "status": 200,
+      "bytes": 7356,
+      "liveBytes": 7356,
+      "match": true
+    },
+    {
+      "path": "/assets/fraunces-latin-ext-wght-normal-Ca2vKHc0.woff2",
+      "status": 200,
+      "bytes": 33584,
+      "liveBytes": 33584,
+      "match": true
+    },
+    {
+      "path": "/assets/fraunces-latin-wght-normal-ukD16Tqj.woff2",
+      "status": 200,
+      "bytes": 36620,
+      "liveBytes": 36620,
+      "match": true
+    },
+    {
+      "path": "/assets/fraunces-vietnamese-wght-normal-CnvboYUG.woff2",
+      "status": 200,
+      "bytes": 11572,
+      "liveBytes": 11572,
+      "match": true
+    },
+    {
+      "path": "/assets/hero-paper-path-720.avif",
+      "status": 200,
+      "bytes": 15874,
+      "liveBytes": 15874,
+      "match": true
+    },
+    {
+      "path": "/assets/hero-paper-path-720.webp",
+      "status": 200,
+      "bytes": 28562,
+      "liveBytes": 28562,
+      "match": true
+    },
+    {
+      "path": "/assets/hero-paper-path.avif",
+      "status": 200,
+      "bytes": 50720,
+      "liveBytes": 50720,
+      "match": true
+    },
+    {
+      "path": "/assets/hero-paper-path.webp",
+      "status": 200,
+      "bytes": 92926,
+      "liveBytes": 92926,
+      "match": true
+    },
+    {
+      "path": "/assets/index-BoNePoce.css",
+      "status": 200,
+      "bytes": 30277,
+      "liveBytes": 30277,
+      "match": true
+    },
+    {
+      "path": "/assets/index-h7pVbsdj.js",
+      "status": 200,
+      "bytes": 46430,
+      "liveBytes": 46430,
+      "match": true
+    },
+    {
+      "path": "/assets/social-card.jpg",
+      "status": 200,
+      "bytes": 127806,
+      "liveBytes": 127806,
+      "match": true
+    },
+    {
+      "path": "/downloads/code-lesson-checkpoints-0.1.0.vsix",
+      "status": 200,
+      "bytes": 7123,
+      "liveBytes": 7123,
+      "match": false
+    },
+    {
+      "path": "/favicon.svg",
+      "status": 200,
+      "bytes": 269,
+      "liveBytes": 269,
+      "match": true
+    },
+    {
+      "path": "/index.html",
+      "status": 200,
+      "bytes": 2000,
+      "liveBytes": 2000,
+      "match": true
+    },
+    {
+      "path": "/robots.txt",
+      "status": 200,
+      "bytes": 89,
+      "liveBytes": 89,
+      "match": true
+    },
+    {
+      "path": "/sitemap.xml",
+      "status": 200,
+      "bytes": 696,
+      "liveBytes": 696,
+      "match": true
+    },
+    {
+      "path": "/sw.js",
+      "status": 200,
+      "bytes": 994,
+      "liveBytes": 994,
+      "match": true
+    }
+  ]
+}

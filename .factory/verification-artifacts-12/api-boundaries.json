@@ -1,0 +1,86 @@
+[
+  {
+    "name": "malformed shape",
+    "status": 422,
+    "expect": 422,
+    "body": "Failed to deserialize the JSON body into the target type: missing field `title` at line 1 column 2"
+  },
+  {
+    "name": "blank title",
+    "status": 400,
+    "expect": 400,
+    "body": "{\"error\":\"Lesson title is required.\"}"
+  },
+  {
+    "name": "title 101 chars",
+    "status": 400,
+    "expect": 400,
+    "body": "{\"error\":\"Lesson title must be 100 characters or fewer.\"}"
+  },
+  {
+    "name": "zero checkpoints",
+    "status": 400,
+    "expect": 400,
+    "body": "{\"error\":\"Add between 1 and 12 checkpoints.\"}"
+  },
+  {
+    "name": "thirteen checkpoints",
+    "status": 400,
+    "expect": 400,
+    "body": "{\"error\":\"Add between 1 and 12 checkpoints.\"}"
+  },
+  {
+    "name": "body over 64 KiB",
+    "status": 413,
+    "expect": 413,
+    "body": "Failed to buffer the request body: length limit exceeded"
+  },
+  {
+    "name": "maximum valid lesson",
+    "status": 201,
+    "expect": 201,
+    "body": "{\"id\":\"f38621dd-ca3b-476f-974e-64ca310c56b9\",\"shareCode\":\"JLR8HW\",\"tutorToken\":\"[redacted after cleanup]\"}"
+  },
+  {
+    "name": "normalized share code",
+    "status": 200,
+    "expect": 200,
+    "body": "{\"id\":\"f38621dd-ca3b-476f-974e-64ca310c56b9\",\"title\":\"TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT\",\"learnerName\":\"LLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLL"
+  },
+  {
+    "name": "invalid evidence status",
+    "status": 400,
+    "expect": 400,
+    "body": "{\"error\":\"Status must be passed or blocked.\"}"
+  },
+  {
+    "name": "missing consent",
+    "status": 400,
+    "expect": 400,
+    "body": "{\"error\":\"Confirm that you reviewed the selected output before sharing.\"}"
+  },
+  {
+    "name": "note 1001 chars",
+    "status": 400,
+    "expect": 400,
+    "body": "{\"error\":\"Text must be 1000 characters or fewer.\"}"
+  },
+  {
+    "name": "missing tutor auth",
+    "status": 401,
+    "expect": 401,
+    "body": "{\"error\":\"Open the private tutor link for this lesson.\"}"
+  },
+  {
+    "name": "wrong tutor auth",
+    "status": 403,
+    "expect": 403,
+    "body": "{\"error\":\"This tutor link is not valid for the lesson.\"}"
+  },
+  {
+    "name": "delete boundary fixture",
+    "status": 204,
+    "expect": 204,
+    "body": ""
+  }
+]

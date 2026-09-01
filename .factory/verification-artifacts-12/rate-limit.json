@@ -1,0 +1,42 @@
+{
+  "read": {
+    "name": "read burst",
+    "count": 160,
+    "elapsedMs": 779,
+    "counts": {
+      "404": 120,
+      "429": 40
+    },
+    "first429": {
+      "status": 429,
+      "retryAfter": "1",
+      "rateAfter": "1",
+      "body": "{\"error\":\"Too many requests. Wait one second and try again.\"}"
+    },
+    "all429HaveRetryAfter": true
+  },
+  "recovery": {
+    "status": 404,
+    "retryAfter": null
+  },
+  "write": {
+    "name": "invalid write burst",
+    "count": 60,
+    "elapsedMs": 168,
+    "counts": {
+      "422": 31,
+      "429": 29
+    },
+    "first429": {
+      "status": 429,
+      "retryAfter": "1",
+      "rateAfter": "1",
+      "body": "{\"error\":\"Too many requests. Wait one second and try again.\"}"
+    },
+    "all429HaveRetryAfter": true
+  },
+  "writeRecovery": {
+    "status": 422,
+    "retryAfter": null
+  }
+}

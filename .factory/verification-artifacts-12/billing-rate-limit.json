@@ -1,0 +1,14 @@
+{
+  "requests": 40,
+  "batches": 2,
+  "counts": {
+    "200": 30,
+    "429": 10
+  },
+  "first429": {
+    "status": 429,
+    "retryAfter": "4",
+    "body": "Too Many Requests! Wait for 4s"
+  },
+  "all429HaveRetryAfter": true
+}

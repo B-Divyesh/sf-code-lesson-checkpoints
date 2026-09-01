@@ -1,0 +1,80 @@
+{
+  "url": "https://code-lesson-checkpoints.sociobot.in/",
+  "status": 200,
+  "title": "Code Lesson Checkpoints — See where learners get stuck",
+  "headers": {
+    "content-encoding": "br",
+    "content-security-policy": "default-src 'self'; img-src 'self' data:; style-src 'self'; script-src 'self'; connect-src 'self' https://api.sociobot.in https://pilot-api.sociobot.in; font-src 'self'; base-uri 'none'; frame-ancestors 'none'; form-action 'self' https://api.sociobot.in",
+    "content-type": "text/html",
+    "date": "Tue, 01 Sep 2026 23:07:03 GMT",
+    "last-modified": "Tue, 01 Sep 2026 22:40:28 GMT",
+    "referrer-policy": "strict-origin-when-cross-origin",
+    "vary": "accept-encoding,origin, access-control-request-method, access-control-request-headers",
+    "x-content-type-options": "nosniff"
+  },
+  "h1": [
+    "See where the lesson got stuck."
+  ],
+  "buttons": [],
+  "links": [
+    "Skip to content",
+    "\n        Code LessonCheckpoints\n      ",
+    "Demo",
+    "Join lesson",
+    "Team plan",
+    "Plan a lesson",
+    "Try it with sample data ",
+    "Plan a lesson",
+    "Join with a lesson code →",
+    "Install the VS Code companion",
+    "Create your first lesson",
+    "See Team archive details",
+    "Privacy",
+    "Terms",
+    "Source on GitHub (external)"
+  ],
+  "firstScreenText": "Skip to content\nCode Lesson\nCheckpoints\nDemo\nJoin lesson\nTeam plan\nPlan a lesson\n\nLEARNERS CHOOSE WHAT TO SHARE\n\nSee where the lesson got stuck.\n\nRemote programming tutors add commands or tests for each lesson step. Learners run them locally and choose what to share.\n\nTry it with sample data\nOpens Sam’s three-checkpoint lesson in a temporary demo.\nPlan a lesson\nJoin with a lesson code\n→\nNo source uploads\nLearners review output before sharing\nFree lesson planning\n01\nRun locally\n02\nShare selected output\n03\nReply in context\n\nHOW IT WORKS\n\nA record of the work,\nnot a recording of the learner.\n1\nAdd checkpoints\n\nAdd the commands or tests that define progress. Learners can copy them into their own terminal.\n\n2\nRun and review\n\nLearners choose Passed or Blocked. They check hidden passwords and keys, then approve what leaves their computer.\n\nInstall the VS Code companion\n3\nReply to the blocked attempt\n\nRead the selected output and note in order. Reply to the exact attempt that needs help.\n\nWhat this tool does not do\nShare lesson results, not source code.\n\nNo remote control, keystroke recording, source collection, automated grading, or generated answers. The learner keeps the keyboard—and the context.\n\nCreate your first lesson\n\nOPTIONAL TEAM ARCHIVE\n\nKeep private tutor links together.\n\nLesson planning and sharing stay free. Team archive searches lesson links saved on this device.\n\n$39 once\n\nFor one tutor\nSearch by learner or lesson\nReopen saved tutor links\nNo recurring fee\nSee Team archive details\n\nCode Lesson Checkpoints\nLearners choose which run results to share.\n\nPrivacy\nTerms\nSource on GitHub (external)\n\nPaper-path artwork generated for this product. No source code is uploaded by default.\nBuilt by Param Factory · Version 0.1.0 (a75b9132713d)",
+  "requests": [
+    {
+      "method": "GET",
+      "url": "https://code-lesson-checkpoints.sociobot.in/",
+      "type": "document"
+    },
+    {
+      "method": "GET",
+      "url": "https://code-lesson-checkpoints.sociobot.in/assets/index-h7pVbsdj.js",
+      "type": "script"
+    },
+    {
+      "method": "GET",
+      "url": "https://code-lesson-checkpoints.sociobot.in/assets/index-BoNePoce.css",
+      "type": "stylesheet"
+    },
+    {
+      "method": "GET",
+      "url": "https://code-lesson-checkpoints.sociobot.in/assets/atkinson-hyperlegible-latin-400-normal-BrHNak5F.woff2",
+      "type": "font"
+    },
+    {
+      "method": "GET",
+      "url": "https://code-lesson-checkpoints.sociobot.in/assets/hero-paper-path-720.avif",
+      "type": "image"
+    },
+    {
+      "method": "GET",
+      "url": "https://code-lesson-checkpoints.sociobot.in/assets/atkinson-hyperlegible-latin-700-normal-GZI4o3u0.woff2",
+      "type": "font"
+    },
+    {
+      "method": "GET",
+      "url": "https://code-lesson-checkpoints.sociobot.in/assets/fraunces-latin-wght-normal-ukD16Tqj.woff2",
+      "type": "font"
+    }
+  ],
+  "errors": [
+    {
+      "type": "warning",
+      "text": "Service Worker registration blocked by Playwright"
+    }
+  ]
+}

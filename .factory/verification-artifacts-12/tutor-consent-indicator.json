@@ -1,0 +1,5 @@
+{
+  "title": "Tutor evidence QA — Code Lesson Checkpoints",
+  "indicators": [],
+  "mainText": "TUTOR VIEW · PRIVATE LINK\n\nTutor evidence QA\n\nSample learner’s lesson · 1 checkpoints\n\nExport record\nCopy learner link\n↻\n0/1\npassed\nLesson status\n\nFirst block at checkpoint 1\n\nOpen the blocked checkpoint →\nLESSON CODE\nWGJYTH\nPRIVACY\nSelected evidence only\nDelete this lesson and its results\nCheckpoint attempts\n\nNewest results appear inside each checkpoint.\n\n1\n\nCHECKPOINT 1\n\nRun the tests\nBlocked\nnpm test\n\nSuccess looks like: All tests pass\n\n1 attempt\nView evidence\nBlocked\n1788305482\nSelected output\nExpected 200; got 401\nLearner note\n\nI checked this output.\n\nReply to this attempt\nSend reply"
+}

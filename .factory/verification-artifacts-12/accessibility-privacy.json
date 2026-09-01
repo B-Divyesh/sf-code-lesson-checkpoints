@@ -1,0 +1,738 @@
+{
+  "base": "https://code-lesson-checkpoints.sociobot.in",
+  "generatedAt": "2026-09-01T23:23:19.339Z",
+  "modes": {
+    "desktop": {
+      "routes": [
+        {
+          "route": "/",
+          "status": 200,
+          "lang": "en",
+          "title": "Code Lesson Checkpoints — See where learners get stuck",
+          "h1": 1,
+          "main": 1,
+          "overflow": false,
+          "scrollWidth": 1440,
+          "clientWidth": 1440,
+          "images": [
+            {
+              "src": "/assets/hero-paper-path.webp",
+              "alt": "A paper-cut path where a small terminal slip crosses three checkpoint steps toward a reply flag",
+              "width": "1200",
+              "height": "800"
+            }
+          ],
+          "targetViolations": [
+            {
+              "text": "Demo",
+              "width": 43,
+              "height": 44
+            }
+          ],
+          "axeSeriousCritical": []
+        },
+        {
+          "route": "/demo",
+          "status": 200,
+          "lang": "en",
+          "title": "Demo — Code Lesson Checkpoints",
+          "h1": 1,
+          "main": 1,
+          "overflow": false,
+          "scrollWidth": 1440,
+          "clientWidth": 1440,
+          "images": [],
+          "targetViolations": [
+            {
+              "text": "Demo",
+              "width": 43,
+              "height": 44
+            }
+          ],
+          "axeSeriousCritical": []
+        },
+        {
+          "route": "/join",
+          "status": 200,
+          "lang": "en",
+          "title": "Join a lesson — Code Lesson Checkpoints",
+          "h1": 1,
+          "main": 1,
+          "overflow": false,
+          "scrollWidth": 1440,
+          "clientWidth": 1440,
+          "images": [],
+          "targetViolations": [
+            {
+              "text": "Demo",
+              "width": 43,
+              "height": 44
+            }
+          ],
+          "axeSeriousCritical": []
+        },
+        {
+          "route": "/new",
+          "status": 200,
+          "lang": "en",
+          "title": "Plan a lesson — Code Lesson Checkpoints",
+          "h1": 1,
+          "main": 1,
+          "overflow": false,
+          "scrollWidth": 1440,
+          "clientWidth": 1440,
+          "images": [],
+          "targetViolations": [
+            {
+              "text": "Demo",
+              "width": 43,
+              "height": 44
+            }
+          ],
+          "axeSeriousCritical": []
+        },
+        {
+          "route": "/pricing",
+          "status": 200,
+          "lang": "en",
+          "title": "Team plan — Code Lesson Checkpoints",
+          "h1": 1,
+          "main": 1,
+          "overflow": false,
+          "scrollWidth": 1440,
+          "clientWidth": 1440,
+          "images": [],
+          "targetViolations": [
+            {
+              "text": "Demo",
+              "width": 43,
+              "height": 44
+            }
+          ],
+          "axeSeriousCritical": []
+        },
+        {
+          "route": "/team",
+          "status": 200,
+          "lang": "en",
+          "title": "Team archive — Code Lesson Checkpoints",
+          "h1": 1,
+          "main": 1,
+          "overflow": false,
+          "scrollWidth": 1440,
+          "clientWidth": 1440,
+          "images": [],
+          "targetViolations": [
+            {
+              "text": "Demo",
+              "width": 43,
+              "height": 44
+            }
+          ],
+          "axeSeriousCritical": []
+        },
+        {
+          "route": "/privacy",
+          "status": 200,
+          "lang": "en",
+          "title": "Privacy — Code Lesson Checkpoints",
+          "h1": 1,
+          "main": 1,
+          "overflow": false,
+          "scrollWidth": 1440,
+          "clientWidth": 1440,
+          "images": [],
+          "targetViolations": [
+            {
+              "text": "Demo",
+              "width": 43,
+              "height": 44
+            }
+          ],
+          "axeSeriousCritical": []
+        },
+        {
+          "route": "/terms",
+          "status": 200,
+          "lang": "en",
+          "title": "Terms — Code Lesson Checkpoints",
+          "h1": 1,
+          "main": 1,
+          "overflow": false,
+          "scrollWidth": 1440,
+          "clientWidth": 1440,
+          "images": [],
+          "targetViolations": [
+            {
+              "text": "Demo",
+              "width": 43,
+              "height": 44
+            }
+          ],
+          "axeSeriousCritical": []
+        },
+        {
+          "route": "/definitely-missing",
+          "status": 404,
+          "lang": "en",
+          "title": "Page not found — Code Lesson Checkpoints",
+          "h1": 1,
+          "main": 1,
+          "overflow": false,
+          "scrollWidth": 1440,
+          "clientWidth": 1440,
+          "images": [],
+          "targetViolations": [
+            {
+              "text": "Demo",
+              "width": 43,
+              "height": 44
+            }
+          ],
+          "axeSeriousCritical": []
+        }
+      ],
+      "textResize": [
+        {
+          "route": "/",
+          "overflow": false,
+          "scrollWidth": 1440,
+          "clientWidth": 1440
+        },
+        {
+          "route": "/demo",
+          "overflow": false,
+          "scrollWidth": 1440,
+          "clientWidth": 1440
+        },
+        {
+          "route": "/join",
+          "overflow": false,
+          "scrollWidth": 1440,
+          "clientWidth": 1440
+        },
+        {
+          "route": "/new",
+          "overflow": false,
+          "scrollWidth": 1440,
+          "clientWidth": 1440
+        },
+        {
+          "route": "/pricing",
+          "overflow": false,
+          "scrollWidth": 1440,
+          "clientWidth": 1440
+        },
+        {
+          "route": "/team",
+          "overflow": false,
+          "scrollWidth": 1440,
+          "clientWidth": 1440
+        },
+        {
+          "route": "/privacy",
+          "overflow": false,
+          "scrollWidth": 1440,
+          "clientWidth": 1440
+        },
+        {
+          "route": "/terms",
+          "overflow": false,
+          "scrollWidth": 1440,
+          "clientWidth": 1440
+        }
+      ],
+      "consoleErrors": [
+        {
+          "url": "https://code-lesson-checkpoints.sociobot.in/definitely-missing",
+          "text": "Failed to load resource: the server responded with a status of 404 ()"
+        }
+      ],
+      "pageErrors": [],
+      "failedRequests": []
+    },
+    "mobile": {
+      "routes": [
+        {
+          "route": "/",
+          "status": 200,
+          "lang": "en",
+          "title": "Code Lesson Checkpoints — See where learners get stuck",
+          "h1": 1,
+          "main": 1,
+          "overflow": false,
+          "scrollWidth": 390,
+          "clientWidth": 390,
+          "images": [
+            {
+              "src": "/assets/hero-paper-path.webp",
+              "alt": "A paper-cut path where a small terminal slip crosses three checkpoint steps toward a reply flag",
+              "width": "1200",
+              "height": "800"
+            }
+          ],
+          "targetViolations": [],
+          "axeSeriousCritical": []
+        },
+        {
+          "route": "/demo",
+          "status": 200,
+          "lang": "en",
+          "title": "Demo — Code Lesson Checkpoints",
+          "h1": 1,
+          "main": 1,
+          "overflow": false,
+          "scrollWidth": 390,
+          "clientWidth": 390,
+          "images": [],
+          "targetViolations": [],
+          "axeSeriousCritical": []
+        },
+        {
+          "route": "/join",
+          "status": 200,
+          "lang": "en",
+          "title": "Join a lesson — Code Lesson Checkpoints",
+          "h1": 1,
+          "main": 1,
+          "overflow": false,
+          "scrollWidth": 390,
+          "clientWidth": 390,
+          "images": [],
+          "targetViolations": [],
+          "axeSeriousCritical": []
+        },
+        {
+          "route": "/new",
+          "status": 200,
+          "lang": "en",
+          "title": "Plan a lesson — Code Lesson Checkpoints",
+          "h1": 1,
+          "main": 1,
+          "overflow": false,
+          "scrollWidth": 390,
+          "clientWidth": 390,
+          "images": [],
+          "targetViolations": [],
+          "axeSeriousCritical": []
+        },
+        {
+          "route": "/pricing",
+          "status": 200,
+          "lang": "en",
+          "title": "Team plan — Code Lesson Checkpoints",
+          "h1": 1,
+          "main": 1,
+          "overflow": false,
+          "scrollWidth": 390,
+          "clientWidth": 390,
+          "images": [],
+          "targetViolations": [],
+          "axeSeriousCritical": []
+        },
+        {
+          "route": "/team",
+          "status": 200,
+          "lang": "en",
+          "title": "Team archive — Code Lesson Checkpoints",
+          "h1": 1,
+          "main": 1,
+          "overflow": false,
+          "scrollWidth": 390,
+          "clientWidth": 390,
+          "images": [],
+          "targetViolations": [],
+          "axeSeriousCritical": []
+        },
+        {
+          "route": "/privacy",
+          "status": 200,
+          "lang": "en",
+          "title": "Privacy — Code Lesson Checkpoints",
+          "h1": 1,
+          "main": 1,
+          "overflow": false,
+          "scrollWidth": 390,
+          "clientWidth": 390,
+          "images": [],
+          "targetViolations": [],
+          "axeSeriousCritical": []
+        },
+        {
+          "route": "/terms",
+          "status": 200,
+          "lang": "en",
+          "title": "Terms — Code Lesson Checkpoints",
+          "h1": 1,
+          "main": 1,
+          "overflow": false,
+          "scrollWidth": 390,
+          "clientWidth": 390,
+          "images": [],
+          "targetViolations": [],
+          "axeSeriousCritical": []
+        },
+        {
+          "route": "/definitely-missing",
+          "status": 404,
+          "lang": "en",
+          "title": "Page not found — Code Lesson Checkpoints",
+          "h1": 1,
+          "main": 1,
+          "overflow": false,
+          "scrollWidth": 390,
+          "clientWidth": 390,
+          "images": [],
+          "targetViolations": [],
+          "axeSeriousCritical": []
+        }
+      ],
+      "textResize": [
+        {
+          "route": "/",
+          "overflow": false,
+          "scrollWidth": 390,
+          "clientWidth": 390
+        },
+        {
+          "route": "/demo",
+          "overflow": false,
+          "scrollWidth": 390,
+          "clientWidth": 390
+        },
+        {
+          "route": "/join",
+          "overflow": false,
+          "scrollWidth": 390,
+          "clientWidth": 390
+        },
+        {
+          "route": "/new",
+          "overflow": false,
+          "scrollWidth": 390,
+          "clientWidth": 390
+        },
+        {
+          "route": "/pricing",
+          "overflow": false,
+          "scrollWidth": 390,
+          "clientWidth": 390
+        },
+        {
+          "route": "/team",
+          "overflow": false,
+          "scrollWidth": 390,
+          "clientWidth": 390
+        },
+        {
+          "route": "/privacy",
+          "overflow": false,
+          "scrollWidth": 390,
+          "clientWidth": 390
+        },
+        {
+          "route": "/terms",
+          "overflow": false,
+          "scrollWidth": 390,
+          "clientWidth": 390
+        }
+      ],
+      "consoleErrors": [
+        {
+          "url": "https://code-lesson-checkpoints.sociobot.in/definitely-missing",
+          "text": "Failed to load resource: the server responded with a status of 404 ()"
+        }
+      ],
+      "pageErrors": [],
+      "failedRequests": []
+    }
+  },
+  "keyboard": {
+    "steps": [
+      {
+        "tag": "A",
+        "text": "Skip to content",
+        "outline": "rgb(52, 112, 142) solid 3px",
+        "outlineColor": "rgb(52, 112, 142)",
+        "boxShadow": "none",
+        "width": 143,
+        "height": 44
+      },
+      {
+        "tag": "A",
+        "text": "Code LessonCheckpoints",
+        "outline": "rgb(52, 112, 142) solid 3px",
+        "outlineColor": "rgb(52, 112, 142)",
+        "boxShadow": "none",
+        "width": 172.546875,
+        "height": 44
+      },
+      {
+        "tag": "A",
+        "text": "Demo",
+        "outline": "rgb(52, 112, 142) solid 3px",
+        "outlineColor": "rgb(52, 112, 142)",
+        "boxShadow": "none",
+        "width": 175,
+        "height": 44
+      },
+      {
+        "tag": "A",
+        "text": "Join lesson",
+        "outline": "rgb(52, 112, 142) solid 3px",
+        "outlineColor": "rgb(52, 112, 142)",
+        "boxShadow": "none",
+        "width": 175,
+        "height": 44
+      },
+      {
+        "tag": "A",
+        "text": "Team plan",
+        "outline": "rgb(52, 112, 142) solid 3px",
+        "outlineColor": "rgb(52, 112, 142)",
+        "boxShadow": "none",
+        "width": 175,
+        "height": 44
+      },
+      {
+        "tag": "A",
+        "text": "Plan a lesson",
+        "outline": "rgb(52, 112, 142) solid 3px",
+        "outlineColor": "rgb(52, 112, 142)",
+        "boxShadow": "rgb(32, 40, 32) 3px 3px 0px 0px",
+        "width": 175,
+        "height": 44
+      },
+      {
+        "tag": "A",
+        "text": "Try it with sample data",
+        "outline": "rgb(52, 112, 142) solid 3px",
+        "outlineColor": "rgb(52, 112, 142)",
+        "boxShadow": "rgb(233, 185, 73) 4px 4px 0px 0px",
+        "width": 358,
+        "height": 48
+      },
+      {
+        "tag": "A",
+        "text": "Plan a lesson",
+        "outline": "rgb(52, 112, 142) solid 3px",
+        "outlineColor": "rgb(52, 112, 142)",
+        "boxShadow": "rgb(32, 40, 32) 3px 3px 0px 0px",
+        "width": 144,
+        "height": 48
+      },
+      {
+        "tag": "A",
+        "text": "Join with a lesson code →",
+        "outline": "rgb(52, 112, 142) solid 3px",
+        "outlineColor": "rgb(52, 112, 142)",
+        "boxShadow": "none",
+        "width": 201,
+        "height": 44
+      }
+    ]
+  },
+  "reducedMotion": {
+    "matches": true,
+    "moving": [
+      {
+        "tag": "HTML",
+        "animation": "1e-05s",
+        "transition": "1e-05s"
+      },
+      {
+        "tag": "HEAD",
+        "animation": "1e-05s",
+        "transition": "1e-05s"
+      },
+      {
+        "tag": "META",
+        "animation": "1e-05s",
+        "transition": "1e-05s"
+      },
+      {
+        "tag": "META",
+        "animation": "1e-05s",
+        "transition": "1e-05s"
+      },
+      {
+        "tag": "META",
+        "animation": "1e-05s",
+        "transition": "1e-05s"
+      },
+      {
+        "tag": "LINK",
+        "animation": "1e-05s",
+        "transition": "1e-05s"
+      },
+      {
+        "tag": "LINK",
+        "animation": "1e-05s",
+        "transition": "1e-05s"
+      },
+      {
+        "tag": "LINK",
+        "animation": "1e-05s",
+        "transition": "1e-05s"
+      },
+      {
+        "tag": "LINK",
+        "animation": "1e-05s",
+        "transition": "1e-05s"
+      },
+      {
+        "tag": "META",
+        "animation": "1e-05s",
+        "transition": "1e-05s"
+      },
+      {
+        "tag": "META",
+        "animation": "1e-05s",
+        "transition": "1e-05s"
+      },
+      {
+        "tag": "META",
+        "animation": "1e-05s",
+        "transition": "1e-05s"
+      },
+      {
+        "tag": "META",
+        "animation": "1e-05s",
+        "transition": "1e-05s"
+      },
+      {
+        "tag": "META",
+        "animation": "1e-05s",
+        "transition": "1e-05s"
+      },
+      {
+        "tag": "META",
+        "animation": "1e-05s",
+        "transition": "1e-05s"
+      },
+      {
+        "tag": "META",
+        "animation": "1e-05s",
+        "transition": "1e-05s"
+      },
+      {
+        "tag": "META",
+        "animation": "1e-05s",
+        "transition": "1e-05s"
+      },
+      {
+        "tag": "META",
+        "animation": "1e-05s",
+        "transition": "1e-05s"
+      },
+      {
+        "tag": "META",
+        "animation": "1e-05s",
+        "transition": "1e-05s"
+      },
+      {
+        "tag": "TITLE",
+        "animation": "1e-05s",
+        "transition": "1e-05s"
+      },
+      {
+        "tag": "SCRIPT",
+        "animation": "1e-05s",
+        "transition": "1e-05s"
+      },
+      {
+        "tag": "LINK",
+        "animation": "1e-05s",
+        "transition": "1e-05s"
+      },
+      {
+        "tag": "BODY",
+        "animation": "1e-05s",
+        "transition": "1e-05s"
+      },
+      {
+        "tag": "A",
+        "animation": "1e-05s",
+        "transition": "1e-05s"
+      },
+      {
+        "tag": "DIV",
+        "animation": "1e-05s",
+        "transition": "1e-05s"
+      },
+      {
+        "tag": "HEADER",
+        "animation": "1e-05s",
+        "transition": "1e-05s"
+      },
+      {
+        "tag": "A",
+        "animation": "1e-05s",
+        "transition": "1e-05s"
+      },
+      {
+        "tag": "SPAN",
+        "animation": "1e-05s",
+        "transition": "1e-05s"
+      },
+      {
+        "tag": "svg",
+        "animation": "1e-05s",
+        "transition": "1e-05s"
+      },
+      {
+        "tag": "path",
+        "animation": "1e-05s",
+        "transition": "1e-05s"
+      }
+    ]
+  },
+  "privacy": {
+    "banner": 1,
+    "requests": [
+      {
+        "method": "GET",
+        "url": "https://code-lesson-checkpoints.sociobot.in/",
+        "resourceType": "document"
+      },
+      {
+        "method": "GET",
+        "url": "https://code-lesson-checkpoints.sociobot.in/assets/hero-paper-path-720.avif",
+        "resourceType": "image"
+      },
+      {
+        "method": "GET",
+        "url": "https://code-lesson-checkpoints.sociobot.in/assets/index-h7pVbsdj.js",
+        "resourceType": "script"
+      },
+      {
+        "method": "GET",
+        "url": "https://code-lesson-checkpoints.sociobot.in/assets/index-BoNePoce.css",
+        "resourceType": "stylesheet"
+      },
+      {
+        "method": "GET",
+        "url": "https://code-lesson-checkpoints.sociobot.in/assets/atkinson-hyperlegible-latin-400-normal-BrHNak5F.woff2",
+        "resourceType": "font"
+      },
+      {
+        "method": "GET",
+        "url": "https://code-lesson-checkpoints.sociobot.in/assets/fraunces-latin-wght-normal-ukD16Tqj.woff2",
+        "resourceType": "font"
+      },
+      {
+        "method": "GET",
+        "url": "https://code-lesson-checkpoints.sociobot.in/assets/atkinson-hyperlegible-latin-700-normal-GZI4o3u0.woff2",
+        "resourceType": "font"
+      },
+      {
+        "method": "POST",
+        "url": "https://code-lesson-checkpoints.sociobot.in/api/demo/workspaces",
+        "resourceType": "fetch"
+      }
+    ],
+    "external": [],
+    "errors": [],
+    "url": "https://code-lesson-checkpoints.sociobot.in/?demo=1"
+  }
+}
