@@ -1,0 +1,65 @@
+[
+  {
+    "path": "/index.html",
+    "status": 200,
+    "localBytes": 2000,
+    "liveBytes": 2000,
+    "localSha256": "f3923f3e583fe97dfb5657b356167a940ca07672210b11eccccd6e14269114e6",
+    "liveSha256": "f3923f3e583fe97dfb5657b356167a940ca07672210b11eccccd6e14269114e6",
+    "identical": true
+  },
+  {
+    "path": "/assets/index-DMysY3cb.js",
+    "status": 200,
+    "localBytes": 51645,
+    "liveBytes": 51645,
+    "localSha256": "1697a984647da0402bc7a9e4ccd0ac4492b7163fbcf43484965b91f8033a6502",
+    "liveSha256": "1697a984647da0402bc7a9e4ccd0ac4492b7163fbcf43484965b91f8033a6502",
+    "identical": true
+  },
+  {
+    "path": "/assets/index-4hofcorZ.css",
+    "status": 200,
+    "localBytes": 31524,
+    "liveBytes": 31524,
+    "localSha256": "c9ec3dd70d121da3ef444ec9103abf6f5277af498b31cae867d270d0d41bdd11",
+    "liveSha256": "c9ec3dd70d121da3ef444ec9103abf6f5277af498b31cae867d270d0d41bdd11",
+    "identical": true
+  },
+  {
+    "path": "/sw.js",
+    "status": 200,
+    "localBytes": 994,
+    "liveBytes": 994,
+    "localSha256": "82aced19365b982907b1705ae9c266b2cde226b18506604eb8a02ae30b9f5dcb",
+    "liveSha256": "82aced19365b982907b1705ae9c266b2cde226b18506604eb8a02ae30b9f5dcb",
+    "identical": true
+  },
+  {
+    "path": "/robots.txt",
+    "status": 200,
+    "localBytes": 89,
+    "liveBytes": 89,
+    "localSha256": "42af05a64dd87705865a293b16df9e9c907513a76477f28db2ddd5433f15af68",
+    "liveSha256": "42af05a64dd87705865a293b16df9e9c907513a76477f28db2ddd5433f15af68",
+    "identical": true
+  },
+  {
+    "path": "/sitemap.xml",
+    "status": 200,
+    "localBytes": 696,
+    "liveBytes": 696,
+    "localSha256": "0c79b481123a408abb411c22bab627525ee20f5c95da2c66a0cd5c56425273a4",
+    "liveSha256": "0c79b481123a408abb411c22bab627525ee20f5c95da2c66a0cd5c56425273a4",
+    "identical": true
+  },
+  {
+    "path": "/downloads/code-lesson-checkpoints-0.1.0.vsix",
+    "status": 200,
+    "localBytes": 7123,
+    "liveBytes": 7123,
+    "localSha256": "22d88ee23f03c6dc965cd0ed7989fd1d40bdb28225496b4c3d9066e2c61eb616",
+    "liveSha256": "474dfa56c382d153d83f7c14f510f136f667651d674e1d26c52412d57375f016",
+    "identical": false
+  }
+]

@@ -1,0 +1,44 @@
+{
+  "title": "Code Lesson Checkpoints — See where learners get stuck",
+  "h1": [
+    "See where the lesson got stuck."
+  ],
+  "firstScreen": [
+    "Checkpoints",
+    "Demo",
+    "Join lesson",
+    "Team plan",
+    "Plan a lesson",
+    "stuck.",
+    "Remote programming tutors add commands or tests for each lesson step. Learners run them locally and choose what to share.",
+    "Opens Sam’s three-checkpoint lesson in a temporary demo.",
+    "Plan a lesson",
+    "→"
+  ],
+  "demoVisible": true,
+  "demo": {
+    "url": "https://code-lesson-checkpoints.sociobot.in/?demo=1",
+    "heading": [
+      "Loading the sample lesson…"
+    ],
+    "banner": true,
+    "reset": true,
+    "startReal": true,
+    "sampleTitle": false
+  },
+  "status": 200,
+  "headers": {
+    "content-encoding": "br",
+    "content-security-policy": "default-src 'self'; img-src 'self' data:; style-src 'self'; script-src 'self'; connect-src 'self' https://api.sociobot.in https://pilot-api.sociobot.in; font-src 'self'; base-uri 'none'; frame-ancestors 'none'; form-action 'self' https://api.sociobot.in",
+    "content-type": "text/html",
+    "date": "Wed, 02 Sep 2026 02:24:01 GMT",
+    "last-modified": "Wed, 02 Sep 2026 01:49:54 GMT",
+    "referrer-policy": "strict-origin-when-cross-origin",
+    "vary": "accept-encoding,origin, access-control-request-method, access-control-request-headers",
+    "x-content-type-options": "nosniff"
+  },
+  "requestOrigins": [
+    "https://code-lesson-checkpoints.sociobot.in"
+  ],
+  "errors": []
+}

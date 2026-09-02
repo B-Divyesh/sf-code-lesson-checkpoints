@@ -1,0 +1,20 @@
+{
+  "tag": "A",
+  "text": "Skip to content",
+  "outlineColor": "rgb(52, 112, 142)",
+  "outlineStyle": "solid",
+  "outlineWidth": "3px",
+  "outlineOffset": "3px",
+  "bodyBackground": "rgb(247, 241, 227)",
+  "box": {
+    "x": 8,
+    "y": 8,
+    "width": 143,
+    "height": 44,
+    "top": 8,
+    "right": 151,
+    "bottom": 52,
+    "left": 8
+  },
+  "contrastAgainstPage": 4.837780617624097
+}

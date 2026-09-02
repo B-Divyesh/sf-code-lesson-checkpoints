@@ -1,0 +1,16 @@
+{
+  "trusted": {
+    "origin": "https://code-lesson-checkpoints.sociobot.in",
+    "status": 200,
+    "allowOrigin": "https://code-lesson-checkpoints.sociobot.in",
+    "allowMethods": "GET,POST,PUT,DELETE",
+    "allowCredentials": null
+  },
+  "untrusted": {
+    "origin": "https://untrusted.invalid",
+    "status": 200,
+    "allowOrigin": null,
+    "allowMethods": "GET,POST,PUT,DELETE",
+    "allowCredentials": null
+  }
+}

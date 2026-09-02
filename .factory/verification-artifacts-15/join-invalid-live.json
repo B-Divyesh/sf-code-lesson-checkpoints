@@ -1,0 +1,16 @@
+{
+  "url": "https://code-lesson-checkpoints.sociobot.in/join/ZZZZZZ",
+  "alerts": [],
+  "body": "!\nLesson unavailable\n\nThat lesson code was not found. Ask your tutor to check it.\n\nTry again\nCheck another code",
+  "events": [
+    {
+      "console": "error",
+      "text": "Failed to load resource: the server responded with a status of 404 ()"
+    },
+    {
+      "url": "https://code-lesson-checkpoints.sociobot.in/api/lessons/code/ZZZZZZ",
+      "status": 404,
+      "body": "{\"error\":\"That lesson code was not found. Ask your tutor to check it.\"}"
+    }
+  ]
+}

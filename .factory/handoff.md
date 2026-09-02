@@ -1,55 +1,67 @@
-# Handoff — polish round 2
+# Handoff — independent verification 15
 
 ## Result
 
-The deployed product repair commit `71f448fa2bc1cfd91c8062da28e1a9b015a611d8` closes every finding in `.factory/review-1.md` and `.factory/review-2.md`.
+**PASS.** Candidate `f1c8a0df67993a27ea66397b147e9ffaa8f986a4` is live at
+https://code-lesson-checkpoints.sociobot.in and matches the tested checkout.
 
-The paid feature is now a real shared Team workspace backed by product SQLite:
+No product code was changed. Independent QA found no P0, P1, P2, or P3 product
+defects. The earlier deployment concern was not reproduced.
 
-- an owner creates a team and receives an invite code;
-- tutors join with that code and receive a separate hashed access token;
-- tutors add lessons they already control to shared, searchable history;
-- members can reopen records and reply in context from another device;
-- only the owner can remove a tutor, which immediately revokes that token.
+## What was verified
 
-The landing first screen now fits all three facts at 1440 × 900, the process h2 names the process, and the README no longer makes unlisted stack or responsive claims. The one-click `?demo=1` sandbox, persistent banner, reset, exit, local namespace, and offline reload remain intact.
+- All 12 `.factory/claims.json` tests pass through the production demo entry
+  point and again against the live service.
+- `npm test`, `npm run check`, `npm run lint`, `npm run build`,
+  `npm run test:package`, `npm run test:e2e`, `npm run test:pwa`,
+  `npm run test:load`, and live coherence checks pass.
+- The complete tutor/learner workflow, demo isolation/reset/exit, paid Team
+  workspace, license restore, JSON export, VS Code companion, invalid-input
+  recovery, permanent deletion, concurrency, and SQLite restart persistence
+  behave as expected.
+- Live `/health` reports the full candidate SHA. All 24 non-VSIX production
+  files match the local build byte for byte; all seven extracted VSIX files
+  match.
+- Product read/write endpoints and the Sociobot license verifier return 429
+  past their documented allowances, with positive `Retry-After` headers.
+- Desktop, 390 px mobile, 200% text, keyboard-only operation, visible focus,
+  reduced motion, zero serious/critical axe findings, service-worker update,
+  and offline demo reload pass.
+- The cold public/demo flow makes eight same-origin requests, sets no cookies,
+  and produces no console or page errors.
+- Mobile Lighthouse: Performance 100, Accessibility 100, Best Practices 100,
+  SEO 100; LCP 1.43 s, TBT 60 ms, CLS 0.006.
 
-## How to run
+The full report is `.factory/verification-15.md`; fresh evidence is under
+`.factory/verification-artifacts-15/`.
+
+## Reproduce
 
 ```bash
 npm ci
-npm run build
-cargo run
+BUILD_SHA=f1c8a0df67993a27ea66397b147e9ffaa8f986a4 npm run build
+BUILD_SHA=f1c8a0df67993a27ea66397b147e9ffaa8f986a4 cargo run --release
 ```
 
-Open `http://localhost:8080`. The sample is at `/?demo=1`.
-
-## Verification
-
-Passed locally from a clean dependency install:
-
-- `npm test` — 12 Vitest and 13 Rust tests.
-- `npm run build` — `dist/` built; initial application JavaScript is 15.87 kB gzip.
-- `npm run lint` — TypeScript, rustfmt, and Clippy.
-- `npm run test:claims` — all 12 claim commands, including the packaged VS Code host flow.
-- `npm run test:e2e` — mobile/desktop routes, metadata, history focus, 200% text, axe integration, keyboard, 404, and the 1440 × 900 fact-fit check.
-- `npm run test:pwa`, `npm run test:load` (200 health requests at 693 req/s), and `npm run test:package`.
-- `/opt/fleet/lib/verify-url.sh http://127.0.0.1:8080 .factory/evidence/polish-2` — no console errors; title, lang, h1, main, and alt checks passed.
-
-Evidence screenshots are in `.factory/evidence/polish-2/`. The standalone Axe CLI could not locate a system Chrome binary; the existing Playwright Axe integration passed on every principal route.
-
-Live cold verification passed after deployment: `/health` reported the repair SHA, `/` and `/?demo=1` rendered the corrected first screens, and `BASE_URL=https://code-lesson-checkpoints.sociobot.in npm run test:e2e` passed. Live screenshots and URL-verifier output are in `.factory/evidence/polish-2-live/`.
-
-## Deploy
-
-Deploy the committed `HEAD` only:
+Then, in another shell:
 
 ```bash
-scripts/deploy-release.sh "$(git rev-parse HEAD)"
+npm test
+npm run check
+npm run lint
+npm run test:claims
+npm run test:package
+npm run test:e2e
+npm run test:pwa
+npm run test:load
+BASE_URL=https://code-lesson-checkpoints.sociobot.in npm run test:coherence
 ```
 
-This uses `deployment/container-app.json`, deploys only `sf-code-lesson-checkpoints`, mounts the existing `/data` share, and runs the durable-state coherence probe.
+The VS Code host claim needs the README-listed Linux GUI runtime (`xvfb` and
+`libgtk-3-0`). Docker was unavailable in this QA container; direct release
+builds, Dockerfile contract tests, deployed identity, and live behavior passed.
 
 ## Known gaps
 
-None. Team access is intentionally token-based rather than an account system: no email address, source file, or payment card data is stored by this product.
+None found in product scope. The brief's ten-session success measure remains a
+field-research measure rather than a technical QA claim.

@@ -1,0 +1,42 @@
+{
+  "configured": {
+    "read": "burst 100, one token per 20 ms",
+    "write": "burst 30, one token per 100 ms"
+  },
+  "read": {
+    "counts": {
+      "404": 119,
+      "429": 81
+    },
+    "first429": {
+      "status": 429,
+      "retryAfter": "1",
+      "rateAfter": "1"
+    },
+    "all429HaveRetryAfter": true
+  },
+  "write": {
+    "counts": {
+      "422": 30,
+      "429": 30
+    },
+    "first429": {
+      "status": 429,
+      "retryAfter": "1",
+      "rateAfter": "1"
+    },
+    "all429HaveRetryAfter": true
+  },
+  "billing": {
+    "counts": {
+      "200": 30,
+      "429": 10
+    },
+    "first429": {
+      "status": 429,
+      "retryAfter": "4",
+      "rateAfter": "4"
+    },
+    "all429HaveRetryAfter": true
+  }
+}

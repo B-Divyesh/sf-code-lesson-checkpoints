@@ -1,0 +1,17 @@
+{
+  "runtime_dir": "/tmp/tmp.Y2evctpiNN",
+  "first_health": {
+    "build": "f1c8a0df67993a27ea66397b147e9ffaa8f986a4",
+    "database": "sqlite",
+    "status": "ok"
+  },
+  "second_health": {
+    "build": "f1c8a0df67993a27ea66397b147e9ffaa8f986a4",
+    "database": "sqlite",
+    "status": "ok"
+  },
+  "persisted_title": "Restart boundary",
+  "checkpoint_count": 1,
+  "delete_status": 204,
+  "db_exists": true
+}

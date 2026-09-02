@@ -1,0 +1,125 @@
+{
+  "eventEntries": [
+    {
+      "name": "pointerover",
+      "duration": 24,
+      "processingDelay": 0.5,
+      "interactionId": 0
+    },
+    {
+      "name": "pointerenter",
+      "duration": 24,
+      "processingDelay": 0.5,
+      "interactionId": 0
+    },
+    {
+      "name": "pointerenter",
+      "duration": 24,
+      "processingDelay": 0.5,
+      "interactionId": 0
+    },
+    {
+      "name": "pointerenter",
+      "duration": 24,
+      "processingDelay": 0.5,
+      "interactionId": 0
+    },
+    {
+      "name": "pointerenter",
+      "duration": 24,
+      "processingDelay": 0.5,
+      "interactionId": 0
+    },
+    {
+      "name": "pointerenter",
+      "duration": 24,
+      "processingDelay": 0.5,
+      "interactionId": 0
+    },
+    {
+      "name": "pointerenter",
+      "duration": 24,
+      "processingDelay": 0.5,
+      "interactionId": 0
+    },
+    {
+      "name": "pointerenter",
+      "duration": 24,
+      "processingDelay": 0.5,
+      "interactionId": 0
+    },
+    {
+      "name": "pointerenter",
+      "duration": 24,
+      "processingDelay": 0.5,
+      "interactionId": 0
+    },
+    {
+      "name": "pointerenter",
+      "duration": 24,
+      "processingDelay": 0.5,
+      "interactionId": 0
+    },
+    {
+      "name": "pointerenter",
+      "duration": 24,
+      "processingDelay": 0.5,
+      "interactionId": 0
+    },
+    {
+      "name": "pointerenter",
+      "duration": 24,
+      "processingDelay": 0.5,
+      "interactionId": 0
+    },
+    {
+      "name": "pointerenter",
+      "duration": 24,
+      "processingDelay": 0.5,
+      "interactionId": 0
+    },
+    {
+      "name": "pointerenter",
+      "duration": 24,
+      "processingDelay": 0.5,
+      "interactionId": 0
+    },
+    {
+      "name": "mouseover",
+      "duration": 24,
+      "processingDelay": 0.5,
+      "interactionId": 0
+    },
+    {
+      "name": "pointerdown",
+      "duration": 24,
+      "processingDelay": 0.7000000029802322,
+      "interactionId": 3011
+    },
+    {
+      "name": "mousedown",
+      "duration": 24,
+      "processingDelay": 1,
+      "interactionId": 0
+    },
+    {
+      "name": "pointerup",
+      "duration": 24,
+      "processingDelay": 1.2999999970197678,
+      "interactionId": 3011
+    },
+    {
+      "name": "mouseup",
+      "duration": 24,
+      "processingDelay": 1.2999999970197678,
+      "interactionId": 0
+    },
+    {
+      "name": "click",
+      "duration": 24,
+      "processingDelay": 1.2999999970197678,
+      "interactionId": 3011
+    }
+  ],
+  "clickToSecondFrameMs": 26.100000008940697
+}

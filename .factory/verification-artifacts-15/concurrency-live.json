@@ -1,0 +1,14 @@
+{
+  "requested": 20,
+  "createStatuses": {
+    "201": 20
+  },
+  "uniqueIds": 20,
+  "uniqueCodes": 20,
+  "readStatuses": {
+    "200": 20
+  },
+  "deleteStatuses": {
+    "204": 20
+  }
+}

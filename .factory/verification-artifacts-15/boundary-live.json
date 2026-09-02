@@ -1,0 +1,84 @@
+[
+  {
+    "name": "zero checkpoints",
+    "status": 400,
+    "body": "{\"error\":\"Add between 1 and 12 checkpoints.\"}",
+    "retryAfter": null
+  },
+  {
+    "name": "thirteen checkpoints",
+    "status": 400,
+    "body": "{\"error\":\"Add between 1 and 12 checkpoints.\"}",
+    "retryAfter": null
+  },
+  {
+    "name": "101-character title",
+    "status": 400,
+    "body": "{\"error\":\"Lesson title must be 100 characters or fewer.\"}",
+    "retryAfter": null
+  },
+  {
+    "name": "501-character command",
+    "status": 400,
+    "body": "{\"error\":\"Command must be 500 characters or fewer.\"}",
+    "retryAfter": null
+  },
+  {
+    "name": "malformed JSON",
+    "status": 400,
+    "body": "Failed to parse the request body as JSON: title: EOF while parsing a value at line 1 column 9",
+    "retryAfter": null
+  },
+  {
+    "name": "body over 64 KiB",
+    "status": 413,
+    "body": "Failed to buffer the request body: length limit exceeded",
+    "retryAfter": null
+  },
+  {
+    "name": "unknown lesson code",
+    "status": 404,
+    "body": "{\"error\":\"That lesson code was not found. Ask your tutor to check it.\"}",
+    "retryAfter": null
+  },
+  {
+    "name": "twelve checkpoints",
+    "status": 201,
+    "created": {
+      "id": "496a203e-9f44-4e3c-8e6c-244a5c36c231",
+      "shareCodeLength": 6
+    }
+  },
+  {
+    "name": "twelve checkpoints readable",
+    "status": 200,
+    "count": 12
+  },
+  {
+    "name": "submission without consent",
+    "status": 400,
+    "body": "{\"error\":\"Confirm that you reviewed the selected output before sharing.\"}",
+    "retryAfter": null
+  },
+  {
+    "name": "invalid status",
+    "status": 400,
+    "body": "{\"error\":\"Status must be passed or blocked.\"}",
+    "retryAfter": null
+  },
+  {
+    "name": "wrong tutor token",
+    "status": 403,
+    "body": "{\"error\":\"This tutor link is not valid for the lesson.\"}",
+    "retryAfter": null
+  },
+  {
+    "name": "cleanup valid lesson",
+    "status": 204
+  },
+  {
+    "name": "deleted lesson no longer readable",
+    "status": 404,
+    "body": "{\"error\":\"That lesson code was not found. Ask your tutor to check it.\"}"
+  }
+]

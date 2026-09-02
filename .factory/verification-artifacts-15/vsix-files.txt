@@ -1,0 +1,7 @@
+[Content_Types].xml
+extension.vsixmanifest
+extension/LICENSE.txt
+extension/dist/extension.js
+extension/dist/privacy.js
+extension/package.json
+extension/readme.md

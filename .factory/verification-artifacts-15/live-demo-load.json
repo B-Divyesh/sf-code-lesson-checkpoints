@@ -1,0 +1,24 @@
+{
+  "outcome": "loaded",
+  "url": "https://code-lesson-checkpoints.sociobot.in/?demo=1",
+  "h1": [
+    "Find the first blocked checkpoint."
+  ],
+  "body": "TUTOR VIEW · REALISTIC SAMPLE\n\nFind the first blocked checkpoint.\n\nSam is debugging a weather API. The sample already contains runs, notes, and a tutor reply.\n\nExport sample record\n1/3\npassed\nLesson status\n\nFirst block at checkpoint 2\n\nOpen the blocked checkpoint →\nLESSON CODE\nSAMPLE\nPRIVACY\nSelected evidence only\n\nThis 24-hour workspace is separate from real lessons. Resetting removes its local sample copy.\n\nCheckpoint attempts\n\nOpen each attempt to see the chosen output, note, and reply.\n\n1\n\nCHECKPOINT 1\n\nInstall and run the starter tests\nPassed\nnpm test\n\nSuccess looks like: The test runner starts and reports one API failure\n\n1 attempt\nView evidence\n2\n\nCHECKPOINT 2\n\nReproduce the unauthorized request\nBlocked\nnpm test -- weather-client\n\nSuccess looks like: The request test explains why the API returns 401\n\n1 attempt\nView evidence\nBlocked\nAug 30, 9:28 AM\n\nLearner reviewed and approved this share.\n\nSelected output\nAuthorization: [redacted]\nExpected: 200\nReceived: 401\nweather-client.test.ts:42\nLearner note\n\nThe token exists, but I think the header is added after fetch starts.\n\nTutor reply\n\nInspect where the headers object is created, then trace the value passed into fetch.\n\n3\n\nCHECKPOINT 3\n\nVerify the fix\nNot run\nnpm test\n\nSuccess looks like: All 19 tests pass\n\nWaiting for the learner to run this checkpoint.\n\nSAFE PRACTICE AREA\n\nPreview output redaction.\n\nPaste test output here. The browser hides common credentials and trims shared output to 8,000 characters.\n\nSample terminal output\n\nNothing entered. This preview stays in the demo.",
+  "events": [
+    {
+      "url": "https://code-lesson-checkpoints.sociobot.in/api/demo/workspaces",
+      "status": 201,
+      "headers": {
+        "access-control-allow-origin": "https://code-lesson-checkpoints.sociobot.in",
+        "content-encoding": "br",
+        "content-security-policy": "default-src 'self'; img-src 'self' data:; style-src 'self'; script-src 'self'; connect-src 'self' https://api.sociobot.in https://pilot-api.sociobot.in; font-src 'self'; base-uri 'none'; frame-ancestors 'none'; form-action 'self' https://api.sociobot.in",
+        "content-type": "application/json",
+        "date": "Wed, 02 Sep 2026 02:24:15 GMT",
+        "referrer-policy": "strict-origin-when-cross-origin",
+        "vary": "accept-encoding,origin, access-control-request-method, access-control-request-headers",
+        "x-content-type-options": "nosniff"
+      }
+    }
+  ]
+}

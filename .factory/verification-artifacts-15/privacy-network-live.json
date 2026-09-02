@@ -1,0 +1,94 @@
+{
+  "requests": [
+    {
+      "method": "GET",
+      "url": "https://code-lesson-checkpoints.sociobot.in/",
+      "type": "document"
+    },
+    {
+      "method": "GET",
+      "url": "https://code-lesson-checkpoints.sociobot.in/assets/hero-paper-path-720.avif",
+      "type": "image"
+    },
+    {
+      "method": "GET",
+      "url": "https://code-lesson-checkpoints.sociobot.in/assets/index-DMysY3cb.js",
+      "type": "script"
+    },
+    {
+      "method": "GET",
+      "url": "https://code-lesson-checkpoints.sociobot.in/assets/index-4hofcorZ.css",
+      "type": "stylesheet"
+    },
+    {
+      "method": "GET",
+      "url": "https://code-lesson-checkpoints.sociobot.in/assets/atkinson-hyperlegible-latin-400-normal-BrHNak5F.woff2",
+      "type": "font"
+    },
+    {
+      "method": "GET",
+      "url": "https://code-lesson-checkpoints.sociobot.in/assets/atkinson-hyperlegible-latin-700-normal-GZI4o3u0.woff2",
+      "type": "font"
+    },
+    {
+      "method": "GET",
+      "url": "https://code-lesson-checkpoints.sociobot.in/assets/fraunces-latin-wght-normal-ukD16Tqj.woff2",
+      "type": "font"
+    },
+    {
+      "method": "POST",
+      "url": "https://code-lesson-checkpoints.sociobot.in/api/demo/workspaces",
+      "type": "fetch"
+    }
+  ],
+  "responses": [
+    {
+      "status": 200,
+      "url": "https://code-lesson-checkpoints.sociobot.in/"
+    },
+    {
+      "status": 200,
+      "url": "https://code-lesson-checkpoints.sociobot.in/assets/index-4hofcorZ.css"
+    },
+    {
+      "status": 200,
+      "url": "https://code-lesson-checkpoints.sociobot.in/assets/hero-paper-path-720.avif"
+    },
+    {
+      "status": 200,
+      "url": "https://code-lesson-checkpoints.sociobot.in/assets/index-DMysY3cb.js"
+    },
+    {
+      "status": 200,
+      "url": "https://code-lesson-checkpoints.sociobot.in/assets/atkinson-hyperlegible-latin-400-normal-BrHNak5F.woff2"
+    },
+    {
+      "status": 200,
+      "url": "https://code-lesson-checkpoints.sociobot.in/assets/atkinson-hyperlegible-latin-700-normal-GZI4o3u0.woff2"
+    },
+    {
+      "status": 200,
+      "url": "https://code-lesson-checkpoints.sociobot.in/assets/fraunces-latin-wght-normal-ukD16Tqj.woff2"
+    },
+    {
+      "status": 201,
+      "url": "https://code-lesson-checkpoints.sociobot.in/api/demo/workspaces"
+    }
+  ],
+  "origins": [
+    "https://code-lesson-checkpoints.sociobot.in"
+  ],
+  "homeHeaders": {
+    "content-encoding": "br",
+    "content-security-policy": "default-src 'self'; img-src 'self' data:; style-src 'self'; script-src 'self'; connect-src 'self' https://api.sociobot.in https://pilot-api.sociobot.in; font-src 'self'; base-uri 'none'; frame-ancestors 'none'; form-action 'self' https://api.sociobot.in",
+    "content-type": "text/html",
+    "date": "Wed, 02 Sep 2026 02:36:00 GMT",
+    "last-modified": "Wed, 02 Sep 2026 01:49:54 GMT",
+    "referrer-policy": "strict-origin-when-cross-origin",
+    "vary": "accept-encoding,origin, access-control-request-method, access-control-request-headers",
+    "x-content-type-options": "nosniff"
+  },
+  "demoDocument": null,
+  "errors": [],
+  "cookies": []
+}

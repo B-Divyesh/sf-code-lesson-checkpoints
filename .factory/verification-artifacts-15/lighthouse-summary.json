@@ -1,0 +1,15 @@
+{
+  "scores": {
+    "performance": 100,
+    "accessibility": 100,
+    "best_practices": 100,
+    "seo": 100
+  },
+  "metrics": {
+    "lcp_ms": 1426.9295,
+    "cls": 0.005935361762742979,
+    "tbt_ms": 60,
+    "speed_index_ms": 1051.9295
+  },
+  "transfer_bytes": 112908
+}

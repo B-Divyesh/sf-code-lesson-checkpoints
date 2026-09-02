@@ -1,0 +1,77 @@
+{
+  "health": {
+    "status": 200,
+    "body": {
+      "build": "f1c8a0df67993a27ea66397b147e9ffaa8f986a4",
+      "database": "sqlite",
+      "status": "ok"
+    },
+    "headers": {
+      "content-encoding": "br",
+      "content-security-policy": "default-src 'self'; img-src 'self' data:; style-src 'self'; script-src 'self'; connect-src 'self' https://api.sociobot.in https://pilot-api.sociobot.in; font-src 'self'; base-uri 'none'; frame-ancestors 'none'; form-action 'self' https://api.sociobot.in",
+      "content-type": "application/json",
+      "date": "Wed, 02 Sep 2026 02:30:18 GMT",
+      "referrer-policy": "strict-origin-when-cross-origin",
+      "transfer-encoding": "chunked",
+      "vary": "accept-encoding,origin, access-control-request-method, access-control-request-headers",
+      "x-content-type-options": "nosniff"
+    }
+  },
+  "home": {
+    "status": 200,
+    "headers": {
+      "content-encoding": "br",
+      "content-security-policy": "default-src 'self'; img-src 'self' data:; style-src 'self'; script-src 'self'; connect-src 'self' https://api.sociobot.in https://pilot-api.sociobot.in; font-src 'self'; base-uri 'none'; frame-ancestors 'none'; form-action 'self' https://api.sociobot.in",
+      "content-type": "text/html",
+      "date": "Wed, 02 Sep 2026 02:30:18 GMT",
+      "last-modified": "Wed, 02 Sep 2026 01:49:54 GMT",
+      "referrer-policy": "strict-origin-when-cross-origin",
+      "transfer-encoding": "chunked",
+      "vary": "accept-encoding,origin, access-control-request-method, access-control-request-headers",
+      "x-content-type-options": "nosniff"
+    }
+  },
+  "assets": {
+    "js": {
+      "path": "/assets/index-DMysY3cb.js",
+      "status": 200,
+      "decodedBytes": 51645,
+      "headers": {
+        "cache-control": "public, max-age=31536000, immutable",
+        "content-encoding": "br",
+        "content-security-policy": "default-src 'self'; img-src 'self' data:; style-src 'self'; script-src 'self'; connect-src 'self' https://api.sociobot.in https://pilot-api.sociobot.in; font-src 'self'; base-uri 'none'; frame-ancestors 'none'; form-action 'self' https://api.sociobot.in",
+        "content-type": "text/javascript",
+        "date": "Wed, 02 Sep 2026 02:30:18 GMT",
+        "last-modified": "Wed, 02 Sep 2026 01:49:54 GMT",
+        "referrer-policy": "strict-origin-when-cross-origin",
+        "transfer-encoding": "chunked",
+        "vary": "accept-encoding,origin, access-control-request-method, access-control-request-headers",
+        "x-content-type-options": "nosniff"
+      }
+    },
+    "css": {
+      "path": "/assets/index-4hofcorZ.css",
+      "status": 200,
+      "decodedBytes": 31524,
+      "headers": {
+        "cache-control": "public, max-age=31536000, immutable",
+        "content-encoding": "br",
+        "content-security-policy": "default-src 'self'; img-src 'self' data:; style-src 'self'; script-src 'self'; connect-src 'self' https://api.sociobot.in https://pilot-api.sociobot.in; font-src 'self'; base-uri 'none'; frame-ancestors 'none'; form-action 'self' https://api.sociobot.in",
+        "content-type": "text/css",
+        "date": "Wed, 02 Sep 2026 02:30:18 GMT",
+        "last-modified": "Wed, 02 Sep 2026 01:49:54 GMT",
+        "referrer-policy": "strict-origin-when-cross-origin",
+        "transfer-encoding": "chunked",
+        "vary": "accept-encoding,origin, access-control-request-method, access-control-request-headers",
+        "x-content-type-options": "nosniff"
+      }
+    }
+  },
+  "rateLimit": {
+    "requests": 100,
+    "counts": {
+      "404": 100
+    },
+    "first429": null
+  }
+}

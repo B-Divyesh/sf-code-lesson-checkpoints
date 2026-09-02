@@ -1,0 +1,151 @@
+{
+  "files": 24,
+  "identical": 24,
+  "mismatches": [],
+  "results": [
+    {
+      "path": "/apple-touch-icon.png",
+      "status": 200,
+      "bytes": 2402,
+      "identical": true
+    },
+    {
+      "path": "/assets/atkinson-hyperlegible-latin-400-normal-BbWidj28.woff",
+      "status": 200,
+      "bytes": 14024,
+      "identical": true
+    },
+    {
+      "path": "/assets/atkinson-hyperlegible-latin-400-normal-BrHNak5F.woff2",
+      "status": 200,
+      "bytes": 17208,
+      "identical": true
+    },
+    {
+      "path": "/assets/atkinson-hyperlegible-latin-700-normal-BK6Glc0m.woff",
+      "status": 200,
+      "bytes": 14292,
+      "identical": true
+    },
+    {
+      "path": "/assets/atkinson-hyperlegible-latin-700-normal-GZI4o3u0.woff2",
+      "status": 200,
+      "bytes": 17524,
+      "identical": true
+    },
+    {
+      "path": "/assets/atkinson-hyperlegible-latin-ext-400-normal-Bbz-b3yf.woff",
+      "status": 200,
+      "bytes": 7356,
+      "identical": true
+    },
+    {
+      "path": "/assets/atkinson-hyperlegible-latin-ext-400-normal-DRk46D-x.woff2",
+      "status": 200,
+      "bytes": 9384,
+      "identical": true
+    },
+    {
+      "path": "/assets/atkinson-hyperlegible-latin-ext-700-normal-BoVPHkS0.woff2",
+      "status": 200,
+      "bytes": 9372,
+      "identical": true
+    },
+    {
+      "path": "/assets/atkinson-hyperlegible-latin-ext-700-normal-CKkU2Dpt.woff",
+      "status": 200,
+      "bytes": 7356,
+      "identical": true
+    },
+    {
+      "path": "/assets/fraunces-latin-ext-wght-normal-Ca2vKHc0.woff2",
+      "status": 200,
+      "bytes": 33584,
+      "identical": true
+    },
+    {
+      "path": "/assets/fraunces-latin-wght-normal-ukD16Tqj.woff2",
+      "status": 200,
+      "bytes": 36620,
+      "identical": true
+    },
+    {
+      "path": "/assets/fraunces-vietnamese-wght-normal-CnvboYUG.woff2",
+      "status": 200,
+      "bytes": 11572,
+      "identical": true
+    },
+    {
+      "path": "/assets/hero-paper-path-720.avif",
+      "status": 200,
+      "bytes": 15874,
+      "identical": true
+    },
+    {
+      "path": "/assets/hero-paper-path-720.webp",
+      "status": 200,
+      "bytes": 28562,
+      "identical": true
+    },
+    {
+      "path": "/assets/hero-paper-path.avif",
+      "status": 200,
+      "bytes": 50720,
+      "identical": true
+    },
+    {
+      "path": "/assets/hero-paper-path.webp",
+      "status": 200,
+      "bytes": 92926,
+      "identical": true
+    },
+    {
+      "path": "/assets/index-4hofcorZ.css",
+      "status": 200,
+      "bytes": 31524,
+      "identical": true
+    },
+    {
+      "path": "/assets/index-DMysY3cb.js",
+      "status": 200,
+      "bytes": 51645,
+      "identical": true
+    },
+    {
+      "path": "/assets/social-card.jpg",
+      "status": 200,
+      "bytes": 127806,
+      "identical": true
+    },
+    {
+      "path": "/favicon.svg",
+      "status": 200,
+      "bytes": 269,
+      "identical": true
+    },
+    {
+      "path": "/index.html",
+      "status": 200,
+      "bytes": 2000,
+      "identical": true
+    },
+    {
+      "path": "/robots.txt",
+      "status": 200,
+      "bytes": 89,
+      "identical": true
+    },
+    {
+      "path": "/sitemap.xml",
+      "status": 200,
+      "bytes": 696,
+      "identical": true
+    },
+    {
+      "path": "/sw.js",
+      "status": 200,
+      "bytes": 994,
+      "identical": true
+    }
+  ]
+}
