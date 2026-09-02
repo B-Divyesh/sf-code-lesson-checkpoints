@@ -2,7 +2,7 @@
 
 ## Result
 
-The repair at `HEAD` closes every finding in `.factory/review-1.md` and `.factory/review-2.md`.
+The deployed product repair commit `71f448fa2bc1cfd91c8062da28e1a9b015a611d8` closes every finding in `.factory/review-1.md` and `.factory/review-2.md`.
 
 The paid feature is now a real shared Team workspace backed by product SQLite:
 
@@ -37,6 +37,8 @@ Passed locally from a clean dependency install:
 - `/opt/fleet/lib/verify-url.sh http://127.0.0.1:8080 .factory/evidence/polish-2` — no console errors; title, lang, h1, main, and alt checks passed.
 
 Evidence screenshots are in `.factory/evidence/polish-2/`. The standalone Axe CLI could not locate a system Chrome binary; the existing Playwright Axe integration passed on every principal route.
+
+Live cold verification passed after deployment: `/health` reported the repair SHA, `/` and `/?demo=1` rendered the corrected first screens, and `BASE_URL=https://code-lesson-checkpoints.sociobot.in npm run test:e2e` passed. Live screenshots and URL-verifier output are in `.factory/evidence/polish-2-live/`.
 
 ## Deploy
 
