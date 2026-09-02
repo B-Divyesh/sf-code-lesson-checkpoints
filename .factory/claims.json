@@ -36,24 +36,24 @@
   },
   {
     "id": "paid-team-checkout",
-    "claim": "Lesson planning is free; Team archive costs $39 once through Sociobot’s hosted checkout, with no embedded payment provider.",
+    "claim": "Lesson planning is free; Team workspace costs $39 once through Sociobot’s hosted checkout, with no embedded payment provider.",
     "where": "landing paid-tier section, pricing, terms, README",
     "test": "npm run test:claims -- --grep @claim:paid-team-checkout",
-    "sandbox": "fresh landing and pricing pages; assert the landing's exact price, archive scope, live details link, and absence of an unverified checkout action; assert the hosted checkout redirect and scan for direct payment-provider embeds"
+    "sandbox": "fresh landing and pricing pages; assert the exact price, Team workspace scope, details link, and absence of an unverified checkout action; assert the hosted checkout redirect and scan for direct payment-provider embeds"
   },
   {
     "id": "license-restore",
-    "claim": "A buyer can restore a valid Team archive license, which is rechecked at most once per day and removed when invalid.",
+    "claim": "A buyer can restore a valid Team workspace license, which is rechecked at most once per day and removed when invalid.",
     "where": "pricing, privacy",
     "test": "npm run test:claims -- --grep @claim:license-restore",
     "sandbox": "fresh browser context with fixture verification responses; assert checkout return, URL stripping, manual restore, daily cache, and invalid-token removal"
   },
   {
     "id": "team-roster-history",
-    "claim": "Team archive searches and reopens private tutor links saved on that device.",
-    "where": "pricing, Team archive, terms, README",
+    "claim": "Team workspaces keep a shared tutor roster and searchable lesson history across devices; only the owner can remove roster access.",
+    "where": "landing paid-tier section, pricing, Team workspace, terms, README",
     "test": "npm run test:claims -- --grep @claim:team-roster-history",
-    "sandbox": "fresh browser context with a fixture license and three local tutor links; search by learner and lesson, open the matching URL, then reload to assert persistence"
+    "sandbox": "fresh owner and member browser contexts with a fixture license; create a team, join it on another device, add shared lessons, search and reopen one, remove the member, and assert access is revoked"
   },
   {
     "id": "privacy-boundaries",

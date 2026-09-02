@@ -1,1 +1,1 @@
-See where a learner’s code first fails with tutor-defined steps and learner-approved run results.
+Track learner-approved run results so remote programming tutors find the first blocked lesson step.

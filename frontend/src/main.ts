@@ -16,6 +16,8 @@ let routeFocusRequested = false;
 type ApiError = Error & { status?: number };
 type ArchivedLesson = { id: string; title: string; learnerName: string; shareCode: string; tutorToken: string; createdAt: string };
 type DemoWorkspace = { workspaceId: string; expiresAt: number; lesson: Lesson };
+type TeamAccess = { id: string; token: string };
+type Team = { id: string; name: string; inviteCode: string; role: 'owner' | 'tutor'; members: Array<{ id: string; name: string; role: 'owner' | 'tutor' }>; lessons: Array<{ id: string; title: string; learnerName?: string; createdAt: string; updatedAt: string }> };
 
 const icon = (name: 'mark' | 'lock' | 'copy' | 'run' | 'reply' | 'check' | 'block') => {
   const paths = {
@@ -127,7 +129,7 @@ function home(): void {
       </figure>
     </section>
     <section class="process" aria-labelledby="process-title">
-      <div><p class="eyebrow"><span></span>How it works</p><h2 id="process-title">A record of the work,<br>not a recording of the learner.</h2></div>
+      <div><p class="eyebrow"><span></span>How it works</p><h2 id="process-title">How tutors and learners use checkpoints.</h2><p class="process-note">A record of the work, not a recording of the learner.</p></div>
       <ol>
         <li><span class="step-number">1</span><div><h3>Add checkpoints</h3><p>Add the commands or tests that define progress. Learners can copy them into their own terminal.</p></div></li>
         <li><span class="step-number">2</span><div><h3>Run and review</h3><p>Learners choose Passed or Blocked. They check hidden passwords and keys, then approve what leaves their computer.</p><a href="/downloads/code-lesson-checkpoints-0.1.0.vsix" download>Install the VS Code companion</a></div></li>
@@ -140,8 +142,8 @@ function home(): void {
       <a class="button paper-button" href="/new">Create your first lesson</a>
     </section>
     <section class="home-team" aria-labelledby="home-team-title">
-      <div><p class="eyebrow"><span></span>Optional Team archive</p><h2 id="home-team-title">Keep private tutor links together.</h2><p>Lesson planning and sharing stay free. Team archive searches lesson links saved on this device.</p></div>
-      <div class="home-team-price"><p><strong>$39</strong> once</p><ul><li>For one tutor</li><li>Search by learner or lesson</li><li>Reopen saved tutor links</li><li>No recurring fee</li></ul><a class="button secondary" href="/pricing">See Team archive details</a></div>
+      <div><p class="eyebrow"><span></span>Optional team workspace</p><h2 id="home-team-title">Share lesson history with your tutoring team.</h2><p>Lesson planning and sharing stay free. Team workspaces keep a shared roster and searchable lesson history.</p></div>
+      <div class="home-team-price"><p><strong>$39</strong> once</p><ul><li>Invite tutors with a team code</li><li>Search shared lesson history</li><li>Reopen records on another device</li><li>No recurring fee</li></ul><a class="button secondary" href="/pricing">See team workspace details</a></div>
     </section>`);
   finishRoute('Remote programming tutors add lesson steps. Learners run them locally and choose which results to share.', '/');
 }
@@ -324,7 +326,7 @@ async function lessonPage(role: 'tutor' | 'learner', key: string): Promise<void>
   }
 }
 
-function renderLesson(lesson: Lesson, role: 'tutor' | 'learner', token: string | null): void {
+function renderLesson(lesson: Lesson, role: 'tutor' | 'learner' | 'team', token: string | null, teamId?: string): void {
   document.title = `${lesson.title} — Code Lesson Checkpoints`;
   const completed = lesson.checkpoints.filter((checkpoint) => statusFor(checkpoint) === 'passed').length;
   const blocked = lesson.checkpoints.find((checkpoint) => statusFor(checkpoint) === 'blocked');
@@ -333,8 +335,8 @@ function renderLesson(lesson: Lesson, role: 'tutor' | 'learner', token: string |
   const created = new URLSearchParams(location.search).has('created');
   app.innerHTML = shell(`
     <section class="lesson-header">
-      <div><p class="eyebrow"><span></span>${role === 'tutor' ? 'Tutor view · private link' : 'Learner view · shared record'}</p><h1>${escapeHtml(lesson.title)}</h1><p>${lesson.learnerName ? `${escapeHtml(lesson.learnerName)}’s lesson` : 'Pair lesson'} · ${lesson.checkpoints.length} checkpoints</p></div>
-      <div class="lesson-actions">${role === 'tutor' ? `<button class="button secondary" id="export-lesson" type="button">Export record</button><button class="button secondary" type="button" data-copy="${escapeHtml(learnerUrl)}">${icon('copy')} Copy learner link</button>` : ''}<button class="icon-button refresh" id="refresh" type="button" aria-label="Refresh lesson" title="Refresh lesson">↻</button></div>
+      <div><p class="eyebrow"><span></span>${role === 'tutor' ? 'Tutor view · private link' : role === 'team' ? 'Team view · shared history' : 'Learner view · shared record'}</p><h1>${escapeHtml(lesson.title)}</h1><p>${lesson.learnerName ? `${escapeHtml(lesson.learnerName)}’s lesson` : 'Pair lesson'} · ${lesson.checkpoints.length} checkpoints</p></div>
+      <div class="lesson-actions">${role !== 'learner' ? `<button class="button secondary" id="export-lesson" type="button">Export record</button>${role === 'tutor' ? `<button class="button secondary" type="button" data-copy="${escapeHtml(learnerUrl)}">${icon('copy')} Copy learner link</button>${savedTeam() ? '<button class="button secondary" id="add-to-team" type="button">Add to team history</button>' : ''}` : ''}` : ''}<button class="icon-button refresh" id="refresh" type="button" aria-label="Refresh lesson" title="Refresh lesson">↻</button></div>
     </section>
     ${created && role === 'tutor' ? `<section class="share-strip" aria-label="Lesson created"><div>${icon('check')}<p><strong>Your lesson is ready.</strong><br>Give the learner this code or copy their link.</p></div><code>${escapeHtml(lesson.shareCode)}</code><button class="button paper-button" type="button" data-copy="${escapeHtml(learnerUrl)}">Copy link ${icon('copy')}</button></section>` : ''}
     <div class="lesson-layout">
@@ -342,14 +344,14 @@ function renderLesson(lesson: Lesson, role: 'tutor' | 'learner', token: string |
         <div class="progress-ring" aria-label="${completed} of ${lesson.checkpoints.length} checkpoints passed"><strong>${completed}/${lesson.checkpoints.length}</strong><span>passed</span></div>
         <div><h2>Lesson status</h2>${blocked ? `<p class="pulse-blocked">${icon('block')} First block at checkpoint ${blocked.position}</p><a href="#checkpoint-${escapeHtml(blocked.id)}">Open the blocked checkpoint →</a>` : completed === lesson.checkpoints.length ? `<p class="pulse-passed">${icon('check')} All checkpoints passed</p>` : '<p>Waiting for the next learner update.</p>'}</div>
         <dl><div><dt>Lesson code</dt><dd>${escapeHtml(lesson.shareCode)}</dd></div><div><dt>Privacy</dt><dd>${icon('lock')} Selected evidence only</dd></div></dl>
-        ${role === 'tutor' ? `<button class="danger-link" id="delete-lesson" type="button">Delete this lesson and its results</button>` : '<p class="rail-note">Need a new checkpoint? Ask your tutor. Learners cannot change the lesson.</p>'}
+        ${role === 'tutor' ? `<button class="danger-link" id="delete-lesson" type="button">Delete this lesson and its results</button>` : role === 'team' ? '<p class="rail-note">Team tutors can read records and reply. Only the original tutor can delete a lesson.</p>' : '<p class="rail-note">Need a new checkpoint? Ask your tutor. Learners cannot change the lesson.</p>'}
       </aside>
-      <section class="timeline" aria-labelledby="timeline-title"><div class="timeline-intro"><h2 id="timeline-title">Checkpoint attempts</h2><p>${role === 'tutor' ? 'Newest results appear inside each checkpoint.' : 'Run each command in your own terminal. Share when you choose.'}</p></div><ol>${lesson.checkpoints.map((checkpoint) => checkpointMarkup(checkpoint, role)).join('')}</ol></section>
+      <section class="timeline" aria-labelledby="timeline-title"><div class="timeline-intro"><h2 id="timeline-title">Checkpoint attempts</h2><p>${role === 'learner' ? 'Run each command in your own terminal. Share when you choose.' : 'Newest results appear inside each checkpoint.'}</p></div><ol>${lesson.checkpoints.map((checkpoint) => checkpointMarkup(checkpoint, role === 'learner' ? 'learner' : 'tutor')).join('')}</ol></section>
     </div>
     ${role === 'learner' ? evidenceDialogs(lesson.checkpoints) : ''}
     ${role === 'tutor' ? `<dialog id="delete-dialog" class="confirm-dialog" aria-labelledby="delete-title"><form method="dialog"><button class="dialog-close icon-button" value="cancel" aria-label="Close delete confirmation">×</button></form><h2 id="delete-title">Delete “${escapeHtml(lesson.title)}”?</h2><p>This permanently removes every checkpoint, run, note, and reply. Type <strong>DELETE</strong> to confirm.</p><form id="delete-form"><label>Confirmation <input name="confirmation" autocomplete="off" required pattern="DELETE"></label><p class="inline-error" role="alert"></p><button class="button danger" type="submit">Delete lesson permanently</button></form></dialog>` : ''}`);
 
-  bindLessonEvents(lesson, role, token);
+  bindLessonEvents(lesson, role, token, teamId);
   if (created) announce('Lesson created. Your private tutor link is saved on this device.');
   finishRoute(`${role === 'tutor' ? 'Review' : 'Run'} the checkpoints for ${lesson.title}.`);
 }
@@ -459,12 +461,12 @@ function bindDemoBanner(workspace: DemoWorkspace): void {
   });
 }
 
-function bindLessonEvents(lesson: Lesson, role: 'tutor' | 'learner', token: string | null): void {
+function bindLessonEvents(lesson: Lesson, role: 'tutor' | 'learner' | 'team', token: string | null, teamId?: string): void {
   document.querySelectorAll<HTMLButtonElement>('[data-copy]').forEach((button) => button.addEventListener('click', async () => {
     try { await navigator.clipboard.writeText(button.dataset.copy ?? ''); announce('Copied to clipboard.'); }
     catch { announce('Clipboard access was blocked. Select and copy the text instead.'); }
   }));
-  document.querySelector('#refresh')?.addEventListener('click', () => void lessonPage(role, role === 'tutor' ? lesson.id : lesson.shareCode));
+  document.querySelector('#refresh')?.addEventListener('click', () => role === 'team' && teamId ? void teamLesson(teamId, lesson.id) : void lessonPage(role as 'tutor' | 'learner', role === 'tutor' ? lesson.id : lesson.shareCode));
   document.querySelector('#export-lesson')?.addEventListener('click', () => {
     const blob = new Blob([JSON.stringify(lesson, null, 2)], { type: 'application/json' });
     const link = document.createElement('a');
@@ -473,6 +475,14 @@ function bindLessonEvents(lesson: Lesson, role: 'tutor' | 'learner', token: stri
     link.click();
     URL.revokeObjectURL(link.href);
     announce('Lesson record exported as JSON.');
+  });
+  document.querySelector<HTMLButtonElement>('#add-to-team')?.addEventListener('click', async (event) => {
+    const team = savedTeam(); const button = event.currentTarget as HTMLButtonElement;
+    if (!team) return;
+    button.disabled = true;
+    try { await api(`/api/teams/${encodeURIComponent(team.id)}/lessons`, { method: 'POST', headers: { Authorization: `Bearer ${token ?? ''}`, 'X-Team-Access': team.token }, body: JSON.stringify({ lessonId: lesson.id }) }); announce('Lesson added to the shared team history.'); }
+    catch (cause) { announce(cause instanceof Error ? cause.message : 'The lesson could not be added to the team.'); }
+    finally { button.disabled = false; }
   });
   document.querySelectorAll<HTMLButtonElement>('.share-evidence').forEach((button) => button.addEventListener('click', () => {
     document.querySelector<HTMLDialogElement>(`#evidence-${CSS.escape(button.dataset.checkpoint ?? '')}`)?.showModal();
@@ -507,9 +517,9 @@ function bindLessonEvents(lesson: Lesson, role: 'tutor' | 'learner', token: stri
     if (button) button.disabled = true;
     try {
       const data = new FormData(form);
-      await api(`/api/tutor/submissions/${encodeURIComponent(form.dataset.submission ?? '')}/reply`, { method: 'PUT', headers: { Authorization: `Bearer ${token ?? ''}` }, body: JSON.stringify({ reply: data.get('reply') }) });
+      await api(role === 'team' && teamId ? `/api/teams/${encodeURIComponent(teamId)}/submissions/${encodeURIComponent(form.dataset.submission ?? '')}/reply` : `/api/tutor/submissions/${encodeURIComponent(form.dataset.submission ?? '')}/reply`, { method: 'PUT', headers: role === 'team' ? { 'X-Team-Access': token ?? '' } : { Authorization: `Bearer ${token ?? ''}` }, body: JSON.stringify({ reply: data.get('reply') }) });
       announce('Reply added to the learner’s attempt.');
-      await lessonPage('tutor', lesson.id);
+      if (role === 'team' && teamId) await teamLesson(teamId, lesson.id); else await lessonPage('tutor', lesson.id);
     } catch (cause) {
       if (error) error.textContent = cause instanceof Error ? cause.message : 'The reply could not be saved.';
       if (button) button.disabled = false;
@@ -557,15 +567,15 @@ async function pricing(): Promise<void> {
   const cached = JSON.parse(localStorage.getItem(`sb_license_verdict:${PRODUCT_SLUG}`) ?? 'null') as LicenseCache | null;
   const optimistic = Boolean(token && cached?.token === token && cached.verdict.valid);
   app.innerHTML = shell(`
-    <section class="pricing-intro"><p class="eyebrow"><span></span>Free lessons or a local archive</p><h1>Plan lessons for free.<br>Keep links together.</h1><p>Lesson planning and sharing are free. Team archive is a one-time purchase for searching tutor links saved on this device.</p></section>
+    <section class="pricing-intro"><p class="eyebrow"><span></span>Free lessons or a shared team workspace</p><h1>Plan lessons for free.<br>Share history with your team.</h1><p>Lesson planning and sharing are free. A Team workspace keeps a shared roster and searchable lesson history.</p></section>
     <section class="price-grid" aria-label="Plans">
       <article class="price-sheet"><p class="plan-name">Pair</p><h2>Free</h2><p class="price-note">No purchase required</p><ul><li>${icon('check')} Plan and share lessons</li><li>${icon('check')} Copy commands and reply to attempts</li><li>${icon('check')} Export and delete lesson records</li><li>${icon('check')} Hide common keys before sharing</li></ul><a class="button secondary" href="/new">Plan a free lesson</a></article>
-      <article class="price-sheet featured"><div class="paper-tab">One-time purchase</div><p class="plan-name">Team archive</p><h2>$39 <small>once</small></h2><p class="price-note">For one tutor</p><ul><li>${icon('check')} Everything in Pair</li><li>${icon('check')} Search by learner or lesson</li><li>${icon('check')} Reopen tutor links saved on this device</li><li>${icon('check')} No recurring fee</li></ul>${optimistic ? '<a class="button primary" href="/team">Open Team archive</a>' : `<a class="button primary" href="${BILLING_BASE}/products/${PRODUCT_SLUG}/checkout">Buy Team archive ${icon('run')}</a>`}<p class="merchant-note">Sociobot/Dodo is the merchant of record. Its hosted checkout handles payment and refunds.</p></article>
+      <article class="price-sheet featured"><div class="paper-tab">One-time purchase</div><p class="plan-name">Team workspace</p><h2>$39 <small>once</small></h2><p class="price-note">For a tutoring team</p><ul><li>${icon('check')} Everything in Pair</li><li>${icon('check')} Invite tutors with a team code</li><li>${icon('check')} Search and reopen shared history</li><li>${icon('check')} Owner-controlled roster access</li><li>${icon('check')} No recurring fee</li></ul>${optimistic ? '<a class="button primary" href="/team">Open Team workspace</a>' : `<a class="button primary" href="${BILLING_BASE}/products/${PRODUCT_SLUG}/checkout">Buy Team workspace ${icon('run')}</a>`}<p class="merchant-note">Sociobot/Dodo is the merchant of record. Its hosted checkout handles payment and refunds.</p></article>
     </section>
-    <section class="restore-sheet"><div><h2>${optimistic ? 'Team archive is unlocked' : 'Already purchased?'}</h2><p>${optimistic ? 'This browser has an active cached license. We’ll quietly recheck it in the background.' : 'Paste your license to restore Team archive on this device.'}</p></div><form id="license-form"><label for="license">License token</label><div><input id="license" name="license" autocomplete="off" required value="${escapeHtml(token ?? '')}" placeholder="Paste license token"><button class="button secondary" type="submit">Verify license</button></div><p id="license-status" role="status" aria-live="polite"></p></form></section>
+    <section class="restore-sheet"><div><h2>${optimistic ? 'Team workspace is unlocked' : 'Already purchased?'}</h2><p>${optimistic ? 'This browser has an active cached license. We’ll quietly recheck it in the background.' : 'Paste your license to restore a Team workspace on this device.'}</p></div><form id="license-form"><label for="license">License token</label><div><input id="license" name="license" autocomplete="off" required value="${escapeHtml(token ?? '')}" placeholder="Paste license token"><button class="button secondary" type="submit">Verify license</button></div><p id="license-status" role="status" aria-live="polite"></p></form></section>
     <p class="legal-callout">Buying means you agree to the <a href="/terms">terms</a>. See how license and lesson data are handled in our <a href="/privacy">privacy notice</a>.</p>`, { current: 'pricing' });
   const form = document.querySelector<HTMLFormElement>('#license-form');
-  finishRoute('Compare free lesson tools with the $39 local Team archive.', '/pricing');
+  finishRoute('Compare free lesson tools with the $39 shared Team workspace.', '/pricing');
   form?.addEventListener('submit', async (event) => {
     event.preventDefault();
     const data = new FormData(form);
@@ -601,25 +611,34 @@ async function pricing(): Promise<void> {
   }).catch(() => undefined);
 }
 
+function savedTeam(): TeamAccess | null { try { return JSON.parse(localStorage.getItem('clc:team') ?? 'null') as TeamAccess | null; } catch { return null; } }
+function saveTeam(team: TeamAccess): void { localStorage.setItem('clc:team', JSON.stringify(team)); }
+function teamHeaders(team: TeamAccess): HeadersInit { return { 'X-Team-Access': team.token }; }
+
 function teamArchive(): void {
-  document.title = 'Team archive — Code Lesson Checkpoints';
-  const token = readLicense();
-  const cached = JSON.parse(localStorage.getItem(`sb_license_verdict:${PRODUCT_SLUG}`) ?? 'null') as LicenseCache | null;
-  if (!token || cached?.token !== token || !cached.verdict.valid) {
-    app.innerHTML = shell(`<section class="error-state paper-layer"><span class="error-mark">${icon('lock')}</span><h1>Team archive is locked.</h1><p>The free Pair workflow is ready whenever you need it. A one-time Team archive license adds a searchable list of private tutor links saved on this device.</p><a class="button primary" href="/pricing">See Team archive</a></section>`, { current: 'team' });
-    finishRoute('Restore or buy a Team archive license to search tutor links saved on this device.', '/team');
-    return;
-  }
-  const archive = JSON.parse(localStorage.getItem('clc:archive') ?? '[]') as ArchivedLesson[];
-  const rows = archive.length ? archive.map((item) => `<li class="archive-row" data-search="${escapeHtml(`${item.learnerName} ${item.title}`.toLowerCase())}"><div><p>${escapeHtml(item.learnerName || 'Learner')}</p><h2>${escapeHtml(item.title)}</h2><span>Created ${formatDate(item.createdAt)} · code ${escapeHtml(item.shareCode)}</span></div><a class="button secondary" href="/lesson/${encodeURIComponent(item.id)}?t=${encodeURIComponent(item.tutorToken)}">Open record</a></li>`).join('') : '<li class="archive-empty"><h2>No saved lessons yet.</h2><p>Create a lesson and its private tutor link will appear here on this device.</p><a class="button primary" href="/new">Plan a lesson</a></li>';
-  app.innerHTML = shell(`<section class="archive-head"><p class="eyebrow"><span></span>Team archive · unlocked</p><h1>Your saved tutor links.</h1><p>Private lesson links saved in this browser, organized around the learner—not around screen recordings.</p><label for="archive-search">Filter by learner or lesson <input id="archive-search" type="search" placeholder="Search saved links"></label></section><section aria-labelledby="archive-list-title"><h2 class="visually-hidden" id="archive-list-title">Saved lesson records</h2><ul class="archive-list">${rows}</ul></section><p class="archive-privacy">${icon('lock')} Archive links stay in this browser. Clearing site data removes this local index, but does not delete relay records; delete each lesson from its tutor view.</p>`, { current: 'team' });
-  document.querySelector<HTMLInputElement>('#archive-search')?.addEventListener('input', (event) => {
-    const value = (event.currentTarget as HTMLInputElement).value.trim().toLowerCase();
-    document.querySelectorAll<HTMLElement>('.archive-row').forEach((row) => { row.hidden = !row.dataset.search?.includes(value); });
-  });
-  finishRoute('Search and reopen private tutor links saved on this device.', '/team');
+  document.title = 'Team workspace — Code Lesson Checkpoints';
+  const token = readLicense(); const cached = JSON.parse(localStorage.getItem(`sb_license_verdict:${PRODUCT_SLUG}`) ?? 'null') as LicenseCache | null;
+  if (!token || cached?.token !== token || !cached.verdict.valid) { app.innerHTML = shell(`<section class="error-state paper-layer"><span class="error-mark">${icon('lock')}</span><h1>Team workspace is locked.</h1><p>The free Pair workflow is ready whenever you need it. A one-time Team workspace adds a shared roster and lesson history.</p><a class="button primary" href="/pricing">See Team workspace</a></section>`, { current: 'team' }); finishRoute('Restore or buy a Team workspace license to share roster access and lesson history.', '/team'); return; }
+  const access = savedTeam(); if (!access) { renderTeamSetup(); return; } void loadTeam(access);
   void verifyLicense(token).then((verdict) => { if (!verdict.valid) { localStorage.removeItem(`sb_license:${PRODUCT_SLUG}`); localStorage.removeItem(`sb_license_verdict:${PRODUCT_SLUG}`); teamArchive(); } }).catch(() => undefined);
 }
+
+function renderTeamSetup(): void {
+  app.innerHTML = shell(`<section class="archive-head"><p class="eyebrow"><span></span>Team workspace · unlocked</p><h1>Start or join a tutoring team.</h1><p>Create a shared roster for your tutors, or join with the invite code from the team owner.</p></section><section class="team-setup"><form id="create-team" class="paper-layer"><h2>Create a team</h2><label>Team name <input name="name" maxlength="80" required placeholder="Northside tutoring"></label><label>Your name <input name="ownerName" maxlength="80" required placeholder="Jordan Lee"></label><button class="button primary" type="submit">Create team</button><p class="inline-error" role="alert"></p></form><form id="join-team" class="paper-layer"><h2>Join a team</h2><label>Team invite code <input name="code" maxlength="7" required placeholder="ABC123"></label><label>Your name <input name="name" maxlength="80" required placeholder="Jordan Lee"></label><button class="button secondary" type="submit">Join team</button><p class="inline-error" role="alert"></p></form></section>`, { current: 'team' });
+  const submit = (selector: string, url: string, payload: (data: FormData) => unknown) => document.querySelector<HTMLFormElement>(selector)?.addEventListener('submit', async (event) => { event.preventDefault(); const form = event.currentTarget as HTMLFormElement; const error = form.querySelector<HTMLElement>('.inline-error'); try { const response = await api<{ team: Team; accessToken: string }>(url, { method: 'POST', body: JSON.stringify(payload(new FormData(form))) }); saveTeam({ id: response.team.id, token: response.accessToken }); teamArchive(); } catch (cause) { if (error) error.textContent = cause instanceof Error ? cause.message : 'The team could not be saved.'; } });
+  submit('#create-team', '/api/teams', (data) => ({ name: data.get('name'), ownerName: data.get('ownerName') })); submit('#join-team', '/api/teams/join', (data) => ({ code: data.get('code'), name: data.get('name') })); finishRoute('Create or join a shared tutoring team with roster access and lesson history.', '/team');
+}
+
+async function loadTeam(access: TeamAccess): Promise<void> { try { const team = await api<Team>(`/api/teams/${encodeURIComponent(access.id)}`, { headers: teamHeaders(access) }); renderTeam(team, access); } catch (cause) { localStorage.removeItem('clc:team'); app.innerHTML = shell(`<section class="error-state paper-layer"><span class="error-mark">!</span><h1>Team access unavailable</h1><p>${escapeHtml(cause instanceof Error ? cause.message : 'This team could not be opened.')}</p><button class="button primary" type="button" id="team-again">Set up team access</button></section>`, { current: 'team' }); document.querySelector('#team-again')?.addEventListener('click', renderTeamSetup); finishRoute('Team access could not be opened. Create or join a team again.', '/team'); } }
+
+function renderTeam(team: Team, access: TeamAccess): void {
+  const rows = team.lessons.length ? team.lessons.map((item) => `<li class="archive-row" data-search="${escapeHtml(`${item.learnerName ?? ''} ${item.title}`.toLowerCase())}"><div><p>${escapeHtml(item.learnerName || 'Learner')}</p><h2>${escapeHtml(item.title)}</h2><span>Updated ${formatDate(item.updatedAt)}</span></div><a class="button secondary" href="/team/${encodeURIComponent(team.id)}/lessons/${encodeURIComponent(item.id)}">Open record</a></li>`).join('') : '<li class="archive-empty"><h2>No shared lessons yet.</h2><p>Open a lesson with its private tutor link and add it to this team.</p><a class="button primary" href="/new">Plan a lesson</a></li>';
+  const members = team.members.map((member) => `<li>${escapeHtml(member.name)} <span>${member.role === 'owner' ? 'Owner' : 'Tutor'}</span>${team.role === 'owner' && member.role === 'tutor' ? `<button class="text-button remove-member" data-member="${escapeHtml(member.id)}">Remove</button>` : ''}</li>`).join('');
+  app.innerHTML = shell(`<section class="archive-head"><p class="eyebrow"><span></span>Team workspace · ${escapeHtml(team.role)}</p><h1>${escapeHtml(team.name)} lesson history.</h1><p>Invite code <strong class="invite-code">${escapeHtml(team.inviteCode)}</strong>. Share it only with tutors you want to add.</p><label for="archive-search">Filter by learner or lesson <input id="archive-search" type="search" placeholder="Search shared records"></label></section><section class="team-roster" aria-labelledby="roster-title"><h2 id="roster-title">Team roster</h2><ul>${members}</ul></section><section aria-labelledby="archive-list-title"><h2 id="archive-list-title">Shared lesson records</h2><ul class="archive-list">${rows}</ul></section><p class="archive-privacy">${icon('lock')} Team access tokens stay in this browser. The owner can remove a tutor from the shared roster. Deleting a lesson permanently removes it from every team history.</p>`, { current: 'team' });
+  document.querySelector<HTMLInputElement>('#archive-search')?.addEventListener('input', (event) => { const value = (event.target as HTMLInputElement).value.toLowerCase(); document.querySelectorAll<HTMLElement>('.archive-row').forEach((row) => { row.hidden = !row.dataset.search?.includes(value); }); }); document.querySelectorAll<HTMLButtonElement>('.remove-member').forEach((button) => button.addEventListener('click', async () => { await api(`/api/teams/${encodeURIComponent(team.id)}/members/${encodeURIComponent(button.dataset.member ?? '')}`, { method: 'DELETE', headers: teamHeaders(access) }); await loadTeam(access); })); finishRoute('Search shared lesson history, invite tutors, and manage roster access.', '/team');
+}
+
+async function teamLesson(teamId: string, lessonId: string): Promise<void> { const access = savedTeam(); if (!access || access.id !== teamId) { navigate('/team'); return; } try { const lesson = await api<Lesson>(`/api/teams/${encodeURIComponent(teamId)}/lessons/${encodeURIComponent(lessonId)}`, { headers: teamHeaders(access) }); renderLesson(lesson, 'team', access.token, teamId); } catch (cause) { app.innerHTML = shell(`<section class="error-state paper-layer"><span class="error-mark">!</span><h1>Lesson unavailable</h1><p>${escapeHtml(cause instanceof Error ? cause.message : 'The shared lesson could not be opened.')}</p><a class="button primary" href="/team">Return to team history</a></section>`, { current: 'team' }); finishRoute('The requested team lesson could not be opened.', `/team/${teamId}/lessons/${lessonId}`); } }
 
 function legal(kind: 'privacy' | 'terms'): void {
   const isPrivacy = kind === 'privacy';
@@ -634,11 +653,11 @@ function legal(kind: 'privacy' | 'terms'): void {
     <p class="updated">Effective August 28, 2026</p><h1>Terms for a clear lesson record.</h1><p class="legal-lede">Use Code Lesson Checkpoints as a consent-based teaching aid, not an automated judge or monitoring tool.</p>
     <h2>Acceptable use</h2><p>You may add lesson checkpoints and share selected run results with people who agreed to participate. Do not collect secrets, harass learners, conceal monitoring, run malicious commands, or violate school, workplace, or local policies.</p>
     <h2>Your responsibilities</h2><p>Tutors are responsible for choosing safe commands and protecting private tutor links. Learners are responsible for reviewing selected output before sharing. Both parties are responsible for having an appropriate legal basis to store educational records, including any institutional FERPA or GDPR requirements.</p>
-    <h2>Team archive purchase</h2><p>Team archive costs $39 once for one tutor. It searches and reopens lesson links saved on that device. Sociobot/Dodo is the merchant of record. Its hosted checkout handles payment and refunds. A refund revokes the license. Accessibility, deletion, and export remain free.</p>
+    <h2>Team workspace purchase</h2><p>Team workspace costs $39 once. It adds a shared tutor roster and searchable lesson history. Team access uses a browser-stored access token. The owner can remove tutors. Sociobot/Dodo is the merchant of record. Its hosted checkout handles payment and refunds. A refund revokes the license. Accessibility, deletion, and export remain free.</p>
     <h2>Availability and warranty</h2><p>The service is provided “as is” without a promise of uninterrupted availability. It is not a source backup, grading authority, or emergency communication channel. To the extent allowed by law, liability is limited to the amount paid for the service.</p>
     <h2>Changes</h2><p>Material changes will be reflected by a new effective date. Continued use after a change means you accept the revised terms.</p>`;
   app.innerHTML = shell(`<article class="legal-page">${content}</article>`, { compact: true });
-  finishRoute(isPrivacy ? 'Learn what lesson and device data this product stores and how to delete it.' : 'Read the terms for lesson records and the optional Team archive.', `/${kind}`);
+  finishRoute(isPrivacy ? 'Learn what lesson and device data this product stores and how to delete it.' : 'Read the terms for lesson records and the optional Team workspace.', `/${kind}`);
 }
 
 function route(): void {
@@ -660,6 +679,7 @@ function route(): void {
   else if (path === '/join') join();
   else if (path === '/pricing') void pricing();
   else if (path === '/team') teamArchive();
+  else if (/^\/team\/[^/]+\/lessons\/[^/]+$/.test(path)) { const [, , teamId, , lessonId] = path.split('/'); void teamLesson(decodeURIComponent(teamId), decodeURIComponent(lessonId)); }
   else if (path === '/privacy') legal('privacy');
   else if (path === '/terms') legal('terms');
   else if (/^\/lesson\/[^/]+$/.test(path)) void lessonPage('tutor', decodeURIComponent(path.split('/')[2]));

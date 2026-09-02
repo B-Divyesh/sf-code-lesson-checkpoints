@@ -1,6 +1,6 @@
 # Copy audit
 
-Audited 2026-09-01. Counts treat contractions and hyphenated terms as one word.
+Audited 2026-09-02. Counts treat contractions and hyphenated terms as one word.
 No landing-page unit exceeds 22 words. No unit contains a banned marketing word.
 
 | Landing-page copy | Words | Result |
@@ -26,6 +26,7 @@ No landing-page unit exceeds 22 words. No unit contains a banned marketing word.
 | Share selected output | 3 | Pass |
 | Reply in context | 3 | Pass |
 | How it works | 3 | Pass |
+| How tutors and learners use checkpoints. | 6 | Pass |
 | A record of the work, not a recording of the learner. | 11 | Pass |
 | Add checkpoints | 2 | Pass |
 | Add the commands or tests that define progress. | 8 | Pass |
@@ -42,16 +43,16 @@ No landing-page unit exceeds 22 words. No unit contains a banned marketing word.
 | No remote control, keystroke recording, source collection, automated grading, or generated answers. | 12 | Pass |
 | The learner keeps the keyboard—and the context. | 8 | Pass |
 | Create your first lesson | 4 | Pass |
-| Optional Team archive | 3 | Pass |
-| Keep private tutor links together. | 5 | Pass |
+| Optional team workspace | 3 | Pass |
+| Share lesson history with your tutoring team. | 7 | Pass |
 | Lesson planning and sharing stay free. | 6 | Pass |
-| Team archive searches lesson links saved on this device. | 9 | Pass |
+| Team workspaces keep a shared roster and searchable lesson history. | 10 | Pass |
 | $39 once | 2 | Pass |
-| For one tutor | 3 | Pass |
-| Search by learner or lesson | 5 | Pass |
-| Reopen saved tutor links | 4 | Pass |
+| Invite tutors with a team code | 6 | Pass |
+| Search shared lesson history | 5 | Pass |
+| Reopen records on another device | 6 | Pass |
 | No recurring fee | 3 | Pass |
-| See Team archive details | 4 | Pass |
+| See team workspace details | 4 | Pass |
 | Learners choose which run results to share. | 7 | Pass |
 | Paper-path artwork generated for this product. | 6 | Pass |
 | No source code is uploaded by default. | 7 | Pass |
@@ -71,5 +72,5 @@ The undefined “extended history,” setup-duration, and internal deployment pr
 | Learner explanation | note |
 | Six-character learner access | lesson code |
 | Private tutor access | tutor link |
-| Paid local link index | Team archive |
+| Paid shared roster and history | Team workspace |
 | Isolated sample workspace | demo |

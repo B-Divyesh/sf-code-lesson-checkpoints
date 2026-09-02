@@ -78,9 +78,9 @@ try {
     { selector: '.hero-actions .text-link', name: 'lesson-code link' },
     { selector: '.process a[download]', name: 'VS Code companion download' },
   ], 'mobile home');
-  assert.equal(await page.locator('.home-team').getByText('$39', { exact: true }).count(), 1, 'home includes the exact Team archive price');
-  assert.equal((await page.locator('.home-team-price > p').innerText()).replace(/\s+/g, ' ').trim(), '$39 once', 'home says the exact one-time Team archive price');
-  assert.equal(await page.locator('.home-team a[href="/pricing"]').count(), 1, 'home links to working Team archive details');
+  assert.equal(await page.locator('.home-team').getByText('$39', { exact: true }).count(), 1, 'home includes the exact Team workspace price');
+  assert.equal((await page.locator('.home-team-price > p').innerText()).replace(/\s+/g, ' ').trim(), '$39 once', 'home says the exact one-time Team workspace price');
+  assert.equal(await page.locator('.home-team a[href="/pricing"]').count(), 1, 'home links to working Team workspace details');
   assert.equal(await page.locator('.home-team a[href*="checkout"]').count(), 0, 'home does not show a checkout action outside the full plan page');
   await assertAllVisibleTouchTargets(page, 'mobile home');
   await page.keyboard.press('Tab');
@@ -222,7 +222,7 @@ try {
     await route.fulfill({ contentType: 'application/json', body: JSON.stringify({ valid: true, reason: 'ok' }) });
   });
   await billingPage.goto(`${baseURL}/pricing?license=qa-license-token`);
-  await billingPage.getByRole('link', { name: 'Open Team archive' }).waitFor();
+  await billingPage.getByRole('link', { name: 'Open Team workspace' }).waitFor();
   assert.equal(new URL(billingPage.url()).searchParams.has('license'), false, 'returned license is removed from the visible URL');
   assert.equal(await billingPage.locator('a[href="/team"]').count(), 1, 'returned valid license unlocks the first pricing render');
   await billingContext.close();
@@ -288,6 +288,10 @@ try {
     await assertAccessible(desktopPage, `desktop ${route}`);
   }
   await desktopPage.goto(baseURL);
+  await desktopPage.setViewportSize({ width: 1440, height: 900 });
+  const trustBottoms = await desktopPage.locator('.trust-row li').evaluateAll((facts) => facts.map((fact) => fact.getBoundingClientRect().bottom));
+  assert.ok(trustBottoms.every((bottom) => bottom <= 900), 'all three first-screen facts fit at 1440 × 900');
+  await desktopPage.setViewportSize({ width: 1440, height: 1000 });
   await desktopPage.locator('html').evaluate((html) => { html.style.fontSize = '32px'; });
   assert.equal(await desktopPage.locator('body').evaluate((body) => body.scrollWidth <= innerWidth), true, 'home page overflows at 200% root text');
   await desktopPage.emulateMedia({ reducedMotion: 'reduce' });

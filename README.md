@@ -5,12 +5,9 @@ Code Lesson Checkpoints helps remote programming tutors see where a learner’s 
 Tutors add commands or tests. Learners run them locally and choose whether to share a status, selected output, and note.
 The tutor sees attempts in order and replies to the blocked attempt without taking over the learner’s screen.
 
-Lesson planning and sharing are free. The optional Team archive costs $39 once.
-It searches and reopens tutor links saved on that device. Checkout runs on Sociobot’s hosted billing page.
+Lesson planning and sharing are free. The optional Team workspace costs $39 once.
+It gives tutors a shared roster and searchable lesson history across devices. Checkout runs on Sociobot’s hosted billing page.
 The app never embeds a payment provider.
-
-This release does not provide shared team accounts, team history, or roster management.
-The researched small-team scope remains a future product decision, documented in [`.factory/scope-decision.md`](.factory/scope-decision.md).
 
 ## Try the sample
 
@@ -22,12 +19,11 @@ The demo uses only the `demo:clc:workspace` browser key. It never reads or chang
 
 ## What is included
 
-- A Rust and SQLite service for lesson records
-- A responsive TypeScript web app for tutors and learners
 - An isolated sample that reloads offline after its first visit
 - JSON export and permanent lesson deletion
 - Local and server checks that hide common keys and cap output
 - A packaged VS Code companion for running tutor commands locally
+- A Team workspace with shared roster access and lesson history
 
 ## Install the VS Code companion
 
@@ -40,12 +36,12 @@ Download [Code Lesson Checkpoints 0.1.0](https://code-lesson-checkpoints.sociobo
 5. Run **Code Lesson: Open Checkpoints** to review a command before running it.
 
 For extension development, open this repository with `extension/` as the extension root.
-Run `npm run test:extension-host` to install the built VSIX in VS Code 1.98.2 and exercise its complete confirmation, local-run, redaction, and sharing flow.
+Run `npm run test:extension-host` to install the VSIX. It verifies command review, local execution, hidden credentials, and sharing approval.
 
 ## Run locally
 
 Requirements: Node 22+, npm 10+, current stable Rust, and a C toolchain.
-On Debian or Ubuntu, install `xvfb` and `libgtk-3-0` before the extension-host claim.
+On Debian or Ubuntu, install `xvfb` and `libgtk-3-0` before running `npm run test:extension-host`.
 
 ```bash
 npm ci
@@ -70,7 +66,7 @@ npm run test:pwa
 npm run test:load
 ```
 
-Each public promise and its independent command are listed in [`.factory/claims.json`](.factory/claims.json).
+[`.factory/claims.json`](.factory/claims.json) lists each public promise and the command that tests it.
 The isolated sample is documented in [`.factory/demo.md`](.factory/demo.md).
 
 ## Privacy and product boundaries

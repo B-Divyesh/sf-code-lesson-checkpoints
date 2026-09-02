@@ -208,9 +208,9 @@ const claims = {
     await page.goto(baseURL, { waitUntil: 'networkidle' });
     await page.locator('.home-team').getByText('$39', { exact: true }).waitFor();
     assert.equal((await page.locator('.home-team-price > p').innerText()).replace(/\s+/g, ' ').trim(), '$39 once');
-    await page.locator('.home-team').getByText('For one tutor', { exact: true }).waitFor();
-    await page.locator('.home-team').getByText('Search by learner or lesson', { exact: true }).waitFor();
-    await page.locator('.home-team').getByText('Reopen saved tutor links', { exact: true }).waitFor();
+    await page.locator('.home-team').getByText('Invite tutors with a team code', { exact: true }).waitFor();
+    await page.locator('.home-team').getByText('Search shared lesson history', { exact: true }).waitFor();
+    await page.locator('.home-team').getByText('Reopen records on another device', { exact: true }).waitFor();
     await page.locator('.home-team').getByText('No recurring fee', { exact: true }).waitFor();
     assert.equal(await page.locator('.home-team a[href*="checkout"]').count(), 0, 'landing page has no unverified purchase action');
     assert.equal(await page.locator('.home-team a[href="/pricing"]').count(), 1, 'landing page routes to complete plan details');
@@ -218,7 +218,7 @@ const claims = {
     await page.getByText('$39').waitFor();
     await page.getByText('One-time purchase', { exact: true }).waitFor();
     await page.getByText('No recurring fee').waitFor();
-    const checkout = await page.getByRole('link', { name: /Buy Team archive/ }).getAttribute('href');
+    const checkout = await page.getByRole('link', { name: /Buy Team workspace/ }).getAttribute('href');
     assert.equal(checkout, 'https://api.sociobot.in/api/v1/products/code-lesson-checkpoints/checkout');
     const response = await fetch(checkout, { redirect: 'manual' });
     assert.equal(response.status, 303);
@@ -235,12 +235,12 @@ const claims = {
       await route.fulfill({ contentType: 'application/json', body: JSON.stringify({ valid: license !== 'revoked-license', reason: license === 'revoked-license' ? 'revoked' : 'ok' }) });
     });
     await page.goto(`${baseURL}/pricing?license=returned-license`);
-    await page.getByRole('link', { name: 'Open Team archive' }).waitFor();
+    await page.getByRole('link', { name: 'Open Team workspace' }).waitFor();
     assert.equal(new URL(page.url()).search, '');
     assert.equal(await page.evaluate(() => localStorage.getItem('sb_license:code-lesson-checkpoints')), 'returned-license');
     assert.equal(checks, 1);
     await page.reload();
-    await page.getByRole('link', { name: 'Open Team archive' }).waitFor();
+    await page.getByRole('link', { name: 'Open Team workspace' }).waitFor();
     assert.equal(checks, 1, 'the valid verdict is reused for one day');
     await page.evaluate(() => {
       localStorage.removeItem('sb_license:code-lesson-checkpoints');
@@ -249,7 +249,7 @@ const claims = {
     await page.goto(`${baseURL}/pricing`);
     await page.getByLabel('License token').fill('manual-license');
     await page.getByRole('button', { name: 'Verify license' }).click();
-    await page.getByRole('link', { name: 'Open Team archive' }).waitFor();
+    await page.getByRole('link', { name: 'Open Team workspace' }).waitFor();
     assert.equal(await page.evaluate(() => localStorage.getItem('sb_license:code-lesson-checkpoints')), 'manual-license');
     await page.evaluate(() => localStorage.removeItem('sb_license_verdict:code-lesson-checkpoints'));
     await page.goto(`${baseURL}/pricing?license=revoked-license`);
@@ -271,45 +271,24 @@ const claims = {
   }),
 
   '@claim:team-roster-history': async () => {
-    const fixtures = [
-      ['HTTP request review', 'Maya Chen'],
-      ['Schema migration review', 'Maya Chen'],
-      ['Async cleanup', 'Jon Bell'],
-    ];
     const created = [];
     try {
-      for (const [title, learnerName] of fixtures) {
-        const response = await fetch(`${baseURL}/api/lessons`, {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ title, learnerName, checkpoints: [{ title: 'Run tests', command: 'npm test' }] }),
-        });
-        assert.equal(response.status, 201);
-        created.push({ ...(await response.json()), title, learnerName, createdAt: new Date().toISOString() });
+      const ownerResponse = await fetch(`${baseURL}/api/teams`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: 'Checkpoint Studio', ownerName: 'Maya Chen' }) });
+      assert.equal(ownerResponse.status, 201); const owner = await ownerResponse.json();
+      const memberResponse = await fetch(`${baseURL}/api/teams/join`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ code: owner.team.inviteCode, name: 'Jon Bell' }) });
+      assert.equal(memberResponse.status, 201); const member = await memberResponse.json();
+      for (const [index, [title, learnerName]] of [['HTTP request review', 'Maya Chen'], ['Schema migration review', 'Maya Chen']].entries()) {
+        const response = await fetch(`${baseURL}/api/lessons`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title, learnerName, checkpoints: [{ title: 'Run tests', command: 'npm test' }] }) });
+        assert.equal(response.status, 201); const lesson = await response.json(); created.push(lesson);
+        const added = await fetch(`${baseURL}/api/teams/${owner.team.id}/lessons`, { method: 'POST', headers: { Authorization: `Bearer ${lesson.tutorToken}`, 'X-Team-Access': index === 0 ? owner.accessToken : member.accessToken, 'Content-Type': 'application/json' }, body: JSON.stringify({ lessonId: lesson.id }) }); assert.equal(added.status, 201);
       }
-      await inContext(async (_context, page) => {
-        await page.goto(baseURL, { waitUntil: 'networkidle' });
-        await page.evaluate((archive) => {
-          localStorage.setItem('sb_license:code-lesson-checkpoints', 'cached-team-license');
-          localStorage.setItem('sb_license_verdict:code-lesson-checkpoints', JSON.stringify({ token: 'cached-team-license', at: Date.now(), verdict: { valid: true, reason: 'ok' } }));
-          localStorage.setItem('clc:archive', JSON.stringify(archive));
-        }, created);
-        await page.goto(`${baseURL}/team`, { waitUntil: 'networkidle' });
-        await page.getByRole('heading', { name: 'Your saved tutor links.' }).waitFor();
-        assert.deepEqual(await page.locator('.archive-row h2').allTextContents(), fixtures.map(([title]) => title));
-        await page.getByLabel('Filter by learner or lesson').fill('schema');
-        assert.deepEqual(await page.locator('.archive-row:not([hidden]) h2').allTextContents(), ['Schema migration review']);
-        const expected = `/lesson/${created[1].id}?t=${encodeURIComponent(created[1].tutorToken)}`;
-        assert.equal(await page.locator('.archive-row:not([hidden]) a').getAttribute('href'), expected);
-        await page.locator('.archive-row:not([hidden]) a').click();
-        await page.getByRole('heading', { name: 'Schema migration review' }).waitFor();
-        await page.goto(`${baseURL}/team`);
-        assert.equal(await page.locator('.archive-row').count(), 3, 'saved tutor links remain after navigation');
-        await page.reload({ waitUntil: 'networkidle' });
-        assert.equal(await page.locator('.archive-row').count(), 3, 'saved tutor links remain after a reload');
-      });
-    } finally {
-      for (const lesson of created) await fetch(`${baseURL}/api/tutor/lessons/${lesson.id}`, { method: 'DELETE', headers: { Authorization: `Bearer ${lesson.tutorToken}` } });
-    }
+      const team = await (await fetch(`${baseURL}/api/teams/${owner.team.id}`, { headers: { 'X-Team-Access': member.accessToken } })).json();
+      assert.equal(team.members.length, 2); assert.deepEqual(team.lessons.map((lesson) => lesson.title).sort(), ['HTTP request review', 'Schema migration review']);
+      const shared = await fetch(`${baseURL}/api/teams/${owner.team.id}/lessons/${created[1].id}`, { headers: { 'X-Team-Access': member.accessToken } }); assert.equal(shared.status, 200);
+      await inContext(async (_context, page) => { await page.goto(baseURL); await page.evaluate(({ id, token }) => { localStorage.setItem('sb_license:code-lesson-checkpoints', 'cached-team-license'); localStorage.setItem('sb_license_verdict:code-lesson-checkpoints', JSON.stringify({ token: 'cached-team-license', at: Date.now(), verdict: { valid: true, reason: 'ok' } })); localStorage.setItem('clc:team', JSON.stringify({ id, token })); }, { id: owner.team.id, token: member.accessToken }); await page.goto(`${baseURL}/team`, { waitUntil: 'networkidle' }); await page.getByRole('heading', { name: 'Checkpoint Studio lesson history.' }).waitFor(); await page.getByLabel('Filter by learner or lesson').fill('schema'); assert.deepEqual(await page.locator('.archive-row:not([hidden]) h2').allTextContents(), ['Schema migration review']); await page.locator('.archive-row:not([hidden]) a').click(); await page.getByRole('heading', { name: 'Schema migration review' }).waitFor(); });
+      const removed = await fetch(`${baseURL}/api/teams/${owner.team.id}/members/${member.team.members.find((person) => person.role === 'tutor').id}`, { method: 'DELETE', headers: { 'X-Team-Access': owner.accessToken } }); assert.equal(removed.status, 204);
+      assert.equal((await fetch(`${baseURL}/api/teams/${owner.team.id}`, { headers: { 'X-Team-Access': member.accessToken } })).status, 403, 'removed tutor cannot read shared history');
+    } finally { for (const lesson of created) await fetch(`${baseURL}/api/tutor/lessons/${lesson.id}`, { method: 'DELETE', headers: { Authorization: `Bearer ${lesson.tutorToken}` } }); }
   },
 
   '@claim:permanent-lesson-deletion': async () => {

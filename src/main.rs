@@ -37,6 +37,7 @@ use uuid::Uuid;
 const DEMO_TTL: Duration = Duration::from_secs(24 * 60 * 60);
 const INITIAL_SCHEMA: &str = include_str!("../migrations/20260828000000_init.sql");
 const DEMO_SCHEMA: &str = include_str!("../migrations/20260830000000_demo_workspaces.sql");
+const TEAM_SCHEMA: &str = include_str!("../migrations/20260902000000_team_workspaces.sql");
 
 // Keep the application's SQL interface limited to the SQLite driver and its
 // core query primitives. This prevents optional drivers from entering the
@@ -183,6 +184,60 @@ struct ReplyBody {
     reply: String,
 }
 
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct CreateTeam {
+    name: String,
+    owner_name: String,
+}
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct JoinTeam {
+    code: String,
+    name: String,
+}
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct AddTeamLesson {
+    lesson_id: String,
+}
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct TeamAccessResponse {
+    team: TeamView,
+    access_token: String,
+}
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct TeamView {
+    id: String,
+    name: String,
+    invite_code: String,
+    role: String,
+    members: Vec<TeamMemberView>,
+    lessons: Vec<TeamLessonView>,
+}
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct TeamMemberView {
+    id: String,
+    name: String,
+    role: String,
+}
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct TeamLessonView {
+    id: String,
+    title: String,
+    learner_name: Option<String>,
+    created_at: String,
+    updated_at: String,
+}
+struct TeamAccess {
+    member_id: String,
+    role: String,
+}
+
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     tracing_subscriber::fmt()
@@ -293,7 +348,8 @@ async fn run_sqlite_migrations(db: &SqlitePool) -> anyhow::Result<()> {
                 .execute(db)
                 .await?;
             sqlx::query(INITIAL_SCHEMA).execute(db).await?;
-            sqlx::query(DEMO_SCHEMA).execute(db).await
+            sqlx::query(DEMO_SCHEMA).execute(db).await?;
+            sqlx::query(TEAM_SCHEMA).execute(db).await
         }
         .await
         {
@@ -329,7 +385,11 @@ fn app(state: AppState, dist: PathBuf) -> Router {
     let cors = CorsLayer::new()
         .allow_origin(origins)
         .allow_methods([Method::GET, Method::POST, Method::PUT, Method::DELETE])
-        .allow_headers([header::AUTHORIZATION, header::CONTENT_TYPE]);
+        .allow_headers([
+            header::AUTHORIZATION,
+            header::CONTENT_TYPE,
+            header::HeaderName::from_static("x-team-access"),
+        ]);
     let index = dist.join("index.html");
     // Known client routes deliberately return the application shell with 200.
     // ServeDir's not-found service keeps that same designed shell for unknown
@@ -374,6 +434,19 @@ fn app(state: AppState, dist: PathBuf) -> Router {
             get(get_tutor_lesson).delete(delete_lesson),
         )
         .route("/tutor/submissions/{id}/reply", put(reply_to_submission))
+        .route("/teams", post(create_team))
+        .route("/teams/join", post(join_team))
+        .route("/teams/{id}", get(get_team))
+        .route("/teams/{id}/lessons", post(add_team_lesson))
+        .route("/teams/{id}/lessons/{lesson_id}", get(get_team_lesson))
+        .route(
+            "/teams/{id}/members/{member_id}",
+            axum::routing::delete(remove_team_member),
+        )
+        .route(
+            "/teams/{id}/submissions/{submission_id}/reply",
+            put(reply_as_team_member),
+        )
         .layer(DefaultBodyLimit::max(64 * 1024))
         .layer(GovernorLayer::new(mutation_rate_limit).error_handler(rate_limit_error))
         .layer(GovernorLayer::new(api_rate_limit).error_handler(rate_limit_error));
@@ -388,6 +461,7 @@ fn app(state: AppState, dist: PathBuf) -> Router {
         .route_service("/new", get_service(ServeFile::new(index.clone())))
         .route_service("/pricing", get_service(ServeFile::new(index.clone())))
         .route_service("/team", get_service(ServeFile::new(index.clone())))
+        .route_service("/team/{id}/lessons/{lesson_id}", get_service(ServeFile::new(index.clone())))
         .route_service("/privacy", get_service(ServeFile::new(index.clone())))
         .route_service("/terms", get_service(ServeFile::new(index.clone())))
         .route_service(
@@ -743,6 +817,241 @@ async fn delete_lesson(
     Ok(StatusCode::NO_CONTENT)
 }
 
+async fn create_team(
+    State(state): State<AppState>,
+    Json(body): Json<CreateTeam>,
+) -> ApiResult<(StatusCode, Json<TeamAccessResponse>)> {
+    let name = clean_required(&body.name, 80, "Team name")?;
+    let owner_name = clean_required(&body.owner_name, 80, "Your name")?;
+    let id = Uuid::new_v4().to_string();
+    let member_id = Uuid::new_v4().to_string();
+    let access_token = random_string(40);
+    let invite_code = create_unique_team_code(&state.db).await?;
+    let now = unix_seconds().to_string();
+    let mut tx = state.db.begin().await?;
+    sqlx::query("INSERT INTO teams (id, name, invite_code, created_at) VALUES ($1, $2, $3, $4)")
+        .bind(&id)
+        .bind(&name)
+        .bind(&invite_code)
+        .bind(&now)
+        .execute(&mut *tx)
+        .await?;
+    sqlx::query("INSERT INTO team_members (id, team_id, name, role, token_hash, created_at) VALUES ($1, $2, $3, 'owner', $4, $5)").bind(&member_id).bind(&id).bind(owner_name).bind(hash_token(&access_token)).bind(&now).execute(&mut *tx).await?;
+    tx.commit().await?;
+    let team = load_team(
+        &state.db,
+        &id,
+        &TeamAccess {
+            member_id,
+            role: "owner".into(),
+        },
+    )
+    .await?;
+    Ok((
+        StatusCode::CREATED,
+        Json(TeamAccessResponse { team, access_token }),
+    ))
+}
+
+async fn join_team(
+    State(state): State<AppState>,
+    Json(body): Json<JoinTeam>,
+) -> ApiResult<(StatusCode, Json<TeamAccessResponse>)> {
+    let name = clean_required(&body.name, 80, "Your name")?;
+    let code = normalize_code(&body.code);
+    let team_id = sqlx::query_scalar::<_, String>("SELECT id FROM teams WHERE invite_code = $1")
+        .bind(code)
+        .fetch_optional(&state.db)
+        .await?
+        .ok_or_else(|| {
+            ApiError(
+                StatusCode::NOT_FOUND,
+                "That team invite code was not found. Ask the owner to check it.".into(),
+            )
+        })?;
+    let member_id = Uuid::new_v4().to_string();
+    let access_token = random_string(40);
+    sqlx::query("INSERT INTO team_members (id, team_id, name, role, token_hash, created_at) VALUES ($1, $2, $3, 'tutor', $4, $5)").bind(&member_id).bind(&team_id).bind(name).bind(hash_token(&access_token)).bind(unix_seconds().to_string()).execute(&state.db).await?;
+    let team = load_team(
+        &state.db,
+        &team_id,
+        &TeamAccess {
+            member_id,
+            role: "tutor".into(),
+        },
+    )
+    .await?;
+    Ok((
+        StatusCode::CREATED,
+        Json(TeamAccessResponse { team, access_token }),
+    ))
+}
+
+async fn get_team(
+    State(state): State<AppState>,
+    Path(id): Path<String>,
+    headers: HeaderMap,
+) -> ApiResult<Json<TeamView>> {
+    let access = authorize_team_member(&state.db, &id, &headers).await?;
+    Ok(Json(load_team(&state.db, &id, &access).await?))
+}
+
+async fn add_team_lesson(
+    State(state): State<AppState>,
+    Path(id): Path<String>,
+    headers: HeaderMap,
+    Json(body): Json<AddTeamLesson>,
+) -> ApiResult<(StatusCode, Json<Value>)> {
+    let access = authorize_team_member(&state.db, &id, &headers).await?;
+    authorize_tutor(&state.db, &body.lesson_id, &headers).await?;
+    sqlx::query("INSERT OR IGNORE INTO team_lessons (team_id, lesson_id, added_by_member_id, created_at) VALUES ($1, $2, $3, $4)").bind(id).bind(body.lesson_id).bind(access.member_id).bind(unix_seconds().to_string()).execute(&state.db).await?;
+    Ok((StatusCode::CREATED, Json(json!({ "saved": true }))))
+}
+
+async fn get_team_lesson(
+    State(state): State<AppState>,
+    Path((id, lesson_id)): Path<(String, String)>,
+    headers: HeaderMap,
+) -> ApiResult<Json<LessonView>> {
+    authorize_team_member(&state.db, &id, &headers).await?;
+    let exists = sqlx::query_scalar::<_, i64>(
+        "SELECT COUNT(*) FROM team_lessons WHERE team_id = $1 AND lesson_id = $2",
+    )
+    .bind(&id)
+    .bind(&lesson_id)
+    .fetch_one(&state.db)
+    .await?;
+    if exists == 0 {
+        return Err(ApiError(
+            StatusCode::NOT_FOUND,
+            "That lesson is not in this team history.".into(),
+        ));
+    }
+    Ok(Json(load_lesson(&state.db, &lesson_id).await?))
+}
+
+async fn reply_as_team_member(
+    State(state): State<AppState>,
+    Path((id, submission_id)): Path<(String, String)>,
+    headers: HeaderMap,
+    Json(body): Json<ReplyBody>,
+) -> ApiResult<Json<Value>> {
+    authorize_team_member(&state.db, &id, &headers).await?;
+    let exists = sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM submissions s JOIN checkpoints c ON c.id = s.checkpoint_id JOIN team_lessons tl ON tl.lesson_id = c.lesson_id WHERE s.id = $1 AND tl.team_id = $2").bind(&submission_id).bind(&id).fetch_one(&state.db).await?;
+    if exists == 0 {
+        return Err(ApiError(
+            StatusCode::NOT_FOUND,
+            "That checkpoint update is not in this team history.".into(),
+        ));
+    }
+    let reply = clean_required(&body.reply, 2000, "Reply")?;
+    sqlx::query("UPDATE submissions SET teacher_reply = $1, replied_at = $2 WHERE id = $3")
+        .bind(reply)
+        .bind(unix_seconds().to_string())
+        .bind(submission_id)
+        .execute(&state.db)
+        .await?;
+    Ok(Json(json!({ "saved": true })))
+}
+
+async fn remove_team_member(
+    State(state): State<AppState>,
+    Path((id, member_id)): Path<(String, String)>,
+    headers: HeaderMap,
+) -> ApiResult<StatusCode> {
+    let access = authorize_team_member(&state.db, &id, &headers).await?;
+    if access.role != "owner" {
+        return Err(ApiError(
+            StatusCode::FORBIDDEN,
+            "Only the team owner can remove members.".into(),
+        ));
+    }
+    if access.member_id == member_id {
+        return Err(ApiError(
+            StatusCode::BAD_REQUEST,
+            "The owner cannot remove their own access.".into(),
+        ));
+    }
+    let owner_id = sqlx::query_scalar::<_, String>(
+        "SELECT id FROM team_members WHERE team_id = $1 AND role = 'owner'",
+    )
+    .bind(&id)
+    .fetch_one(&state.db)
+    .await?;
+    let mut tx = state.db.begin().await?;
+    sqlx::query("UPDATE team_lessons SET added_by_member_id = $1 WHERE team_id = $2 AND added_by_member_id = $3")
+        .bind(owner_id)
+        .bind(&id)
+        .bind(&member_id)
+        .execute(&mut *tx)
+        .await?;
+    let result =
+        sqlx::query("DELETE FROM team_members WHERE id = $1 AND team_id = $2 AND role = 'tutor'")
+            .bind(member_id)
+            .bind(id)
+            .execute(&mut *tx)
+            .await?;
+    if result.rows_affected() == 0 {
+        return Err(ApiError(
+            StatusCode::NOT_FOUND,
+            "That team member was not found.".into(),
+        ));
+    }
+    tx.commit().await?;
+    Ok(StatusCode::NO_CONTENT)
+}
+
+async fn authorize_team_member(
+    db: &SqlitePool,
+    team_id: &str,
+    headers: &HeaderMap,
+) -> ApiResult<TeamAccess> {
+    let token = headers
+        .get("x-team-access")
+        .and_then(|h| h.to_str().ok())
+        .filter(|value| !value.is_empty())
+        .ok_or_else(|| {
+            ApiError(
+                StatusCode::UNAUTHORIZED,
+                "Open this team from your saved team access link.".into(),
+            )
+        })?;
+    let row =
+        sqlx::query("SELECT id, role FROM team_members WHERE team_id = $1 AND token_hash = $2")
+            .bind(team_id)
+            .bind(hash_token(token))
+            .fetch_optional(db)
+            .await?
+            .ok_or_else(|| {
+                ApiError(
+                    StatusCode::FORBIDDEN,
+                    "This team access is not valid.".into(),
+                )
+            })?;
+    Ok(TeamAccess {
+        member_id: row.get("id"),
+        role: row.get("role"),
+    })
+}
+
+async fn load_team(db: &SqlitePool, team_id: &str, access: &TeamAccess) -> ApiResult<TeamView> {
+    let team = sqlx::query("SELECT id, name, invite_code FROM teams WHERE id = $1")
+        .bind(team_id)
+        .fetch_optional(db)
+        .await?
+        .ok_or_else(|| ApiError(StatusCode::NOT_FOUND, "That team was not found.".into()))?;
+    let members = sqlx::query("SELECT id, name, role FROM team_members WHERE team_id = $1 ORDER BY CASE role WHEN 'owner' THEN 0 ELSE 1 END, created_at").bind(team_id).fetch_all(db).await?.into_iter().map(|row| TeamMemberView { id: row.get("id"), name: row.get("name"), role: row.get("role") }).collect();
+    let lessons = sqlx::query("SELECT l.id, l.title, l.learner_name, l.created_at, l.updated_at FROM team_lessons tl JOIN lessons l ON l.id = tl.lesson_id WHERE tl.team_id = $1 ORDER BY l.updated_at DESC").bind(team_id).fetch_all(db).await?.into_iter().map(|row| TeamLessonView { id: row.get("id"), title: row.get("title"), learner_name: row.get("learner_name"), created_at: row.get("created_at"), updated_at: row.get("updated_at") }).collect();
+    Ok(TeamView {
+        id: team.get("id"),
+        name: team.get("name"),
+        invite_code: team.get("invite_code"),
+        role: access.role.clone(),
+        members,
+        lessons,
+    })
+}
+
 async fn load_lesson(db: &SqlitePool, id: &str) -> ApiResult<LessonView> {
     let row = sqlx::query(
         "SELECT id, title, learner_name, share_code, created_at FROM lessons WHERE id = $1",
@@ -879,6 +1188,27 @@ async fn create_unique_code(db: &SqlitePool) -> ApiResult<String> {
     Err(ApiError(
         StatusCode::INTERNAL_SERVER_ERROR,
         "Could not create a share code. Try again.".into(),
+    ))
+}
+
+async fn create_unique_team_code(db: &SqlitePool) -> ApiResult<String> {
+    const ALPHABET: &[u8] = b"23456789ABCDEFGHJKLMNPQRSTUVWXYZ";
+    for _ in 0..10 {
+        let code: String = (0..6)
+            .map(|_| ALPHABET[rand::rng().random_range(0..ALPHABET.len())] as char)
+            .collect();
+        let exists =
+            sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM teams WHERE invite_code = $1")
+                .bind(&code)
+                .fetch_one(db)
+                .await?;
+        if exists == 0 {
+            return Ok(code);
+        }
+    }
+    Err(ApiError(
+        StatusCode::INTERNAL_SERVER_ERROR,
+        "A team invite code could not be created. Try again.".into(),
     ))
 }
 
