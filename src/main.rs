@@ -164,6 +164,7 @@ struct SubmissionView {
     status: String,
     output: String,
     note: String,
+    consented: bool,
     teacher_reply: Option<String>,
     created_at: String,
     replied_at: Option<String>,
@@ -570,6 +571,7 @@ fn sample_demo_lesson() -> Value {
                     "status": "passed",
                     "output": "18 tests passed; 1 integration test failed as expected",
                     "note": "The local suite runs. I can reproduce the failing request.",
+                    "consented": true,
                     "teacherReply": "Good. Keep the failing test open while you inspect the request.",
                     "createdAt": "2026-08-30T09:12:00Z",
                     "repliedAt": "2026-08-30T09:15:00Z"
@@ -586,6 +588,7 @@ fn sample_demo_lesson() -> Value {
                     "status": "blocked",
                     "output": "Authorization: [redacted]\nExpected: 200\nReceived: 401\nweather-client.test.ts:42",
                     "note": "The token exists, but I think the header is added after fetch starts.",
+                    "consented": true,
                     "teacherReply": "Inspect where the headers object is created, then trace the value passed into fetch.",
                     "createdAt": "2026-08-30T09:28:00Z",
                     "repliedAt": "2026-08-30T09:34:00Z"
@@ -753,7 +756,7 @@ async fn load_lesson(db: &SqlitePool, id: &str) -> ApiResult<LessonView> {
     let mut checkpoints = Vec::with_capacity(checkpoint_rows.len());
     for checkpoint in checkpoint_rows {
         let checkpoint_id: String = checkpoint.get("id");
-        let submission_rows = sqlx::query("SELECT id, status, output, note, teacher_reply, created_at, replied_at FROM submissions WHERE checkpoint_id = $1 ORDER BY created_at DESC")
+        let submission_rows = sqlx::query("SELECT id, status, output, note, consented, teacher_reply, created_at, replied_at FROM submissions WHERE checkpoint_id = $1 ORDER BY created_at DESC")
             .bind(&checkpoint_id).fetch_all(db).await?;
         let submissions = submission_rows
             .into_iter()
@@ -762,6 +765,7 @@ async fn load_lesson(db: &SqlitePool, id: &str) -> ApiResult<LessonView> {
                 status: s.get("status"),
                 output: s.get("output"),
                 note: s.get("note"),
+                consented: s.get("consented"),
                 teacher_reply: s.get("teacher_reply"),
                 created_at: s.get("created_at"),
                 replied_at: s.get("replied_at"),
@@ -1146,6 +1150,10 @@ mod tests {
         assert_eq!(
             lesson["checkpoints"][0]["submissions"][0]["note"],
             "I expected green tests"
+        );
+        assert_eq!(
+            lesson["checkpoints"][0]["submissions"][0]["consented"], true,
+            "a tutor must receive the consent value stored with the attempt"
         );
 
         let submission_id = lesson["checkpoints"][0]["submissions"][0]["id"]

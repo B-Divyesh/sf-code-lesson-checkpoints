@@ -1,0 +1,14 @@
+{
+  "url": "http://127.0.0.1:8080",
+  "loadMs": 653,
+  "errors": [],
+  "a11y": {
+    "title": "Code Lesson Checkpoints — See where learners get stuck",
+    "lang": "en",
+    "h1": 1,
+    "main": true,
+    "imgsMissingAlt": 0,
+    "buttonsUnlabeled": 0,
+    "textLength": 1705
+  }
+}

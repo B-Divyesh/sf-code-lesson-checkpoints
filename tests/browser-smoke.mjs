@@ -261,6 +261,10 @@ try {
 
   await page.reload();
   await page.getByText('First block at checkpoint 1').waitFor();
+  const tutorAttempts = page.locator('.attempt');
+  assert.equal(await tutorAttempts.count(), 1, 'the tutor sees the stored learner attempt');
+  assert.equal(await tutorAttempts.locator('.consent-indicator').count(), 1, 'every tutor-visible attempt shows stored consent');
+  await tutorAttempts.getByText('Learner reviewed and approved this share.', { exact: true }).waitFor();
   await assertAccessible(page, 'tutor timeline');
   await page.getByLabel('Reply to this attempt').fill('Inspect where the Authorization header is constructed.');
   await page.getByRole('button', { name: /Send reply/ }).click();
@@ -280,6 +284,7 @@ try {
     const response = await desktopPage.goto(`${baseURL}${route}`, { waitUntil: 'networkidle' });
     assert.equal(response?.status(), 200, `desktop ${route} response status`);
     assert.equal(await desktopPage.locator('body').evaluate((body) => body.scrollWidth <= innerWidth), true, `${route} overflows at desktop`);
+    await assertAllVisibleTouchTargets(desktopPage, `desktop ${route}`);
     await assertAccessible(desktopPage, `desktop ${route}`);
   }
   await desktopPage.goto(baseURL);
@@ -289,6 +294,14 @@ try {
   assert.equal(await desktopPage.locator('html').evaluate((html) => getComputedStyle(html).scrollBehavior), 'auto');
   assert.equal(await desktopPage.locator('.button').first().evaluate((button) => parseFloat(getComputedStyle(button).transitionDuration) <= 0.001), true, 'reduced motion removes meaningful transitions');
   await desktop.close();
+
+  const desktopMissingContext = await browser.newContext({ viewport: { width: 1440, height: 1000 } });
+  const desktopMissingPage = await desktopMissingContext.newPage();
+  const desktopMissingResponse = await desktopMissingPage.goto(`${baseURL}/missing-page`);
+  assert.equal(desktopMissingResponse?.status(), 404, 'unknown desktop route has a real HTTP 404');
+  await assertAllVisibleTouchTargets(desktopMissingPage, 'desktop /missing-page');
+  await assertAccessible(desktopMissingPage, 'desktop not-found page');
+  await desktopMissingContext.close();
 
   // A real document-level 404 produces Chromium's expected failed-resource
   // console line, so verify it in an isolated page and keep the normal-route
@@ -300,6 +313,7 @@ try {
   assert.equal(await missingPage.locator('h1').count(), 1, 'not-found page has one h1');
   assert.equal(await missingPage.getByRole('heading', { name: 'Page not found' }).count(), 1);
   assert.equal((await missingPage.locator('footer a[href^="https://github.com"]').textContent())?.trim(), 'Source on GitHub (external)');
+  await assertAllVisibleTouchTargets(missingPage, 'mobile /missing-page');
   await assertAccessible(missingPage, 'not-found page');
   await missingContext.close();
 

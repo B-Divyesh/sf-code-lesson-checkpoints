@@ -39,7 +39,7 @@ svg.icon { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-w
 .brand strong { font-family: var(--display); font-size: 19px; font-weight: 700; }
 .brand-mark { width: 44px; height: 44px; display: grid; place-items: center; background: var(--sun); border: 1.5px solid var(--ink); border-radius: 50% 44% 48% 45%; box-shadow: 3px 3px 0 var(--ink); transform: rotate(-3deg); }
 .site-header nav, footer nav { display: flex; align-items: center; gap: 28px; }
-.site-header nav a { min-height: 44px; display: inline-flex; align-items: center; color: var(--ink); font-weight: 700; text-decoration: none; border-bottom: 3px solid transparent; }
+.site-header nav a { min-width: 44px; min-height: 44px; display: inline-flex; align-items: center; justify-content: center; color: var(--ink); font-weight: 700; text-decoration: none; border-bottom: 3px solid transparent; }
 .site-header nav a[aria-current='page'] { border-color: var(--sun); }
 .site-header .header-action { padding: 0 18px; border: 1.5px solid var(--ink); box-shadow: 3px 3px 0 var(--ink); background: var(--paper-raised); }
 .demo-banner { position: sticky; z-index: 40; top: 0; width: min(1200px, calc(100% - 48px)); min-height: 64px; margin: 0 auto; padding: 9px 14px; display: flex; align-items: center; justify-content: space-between; gap: 20px; background: var(--sun); border: 1.5px solid var(--ink); box-shadow: 4px 4px 0 var(--ink); }
@@ -223,6 +223,8 @@ input:focus, textarea:focus { border-color: var(--sky); }
 .attempt { margin: 12px 0; padding: 18px; background: #f2ede1; border-left: 4px solid var(--sky); }
 .attempt-meta { margin-bottom: 18px; display: flex; justify-content: space-between; align-items: center; gap: 16px; }
 .attempt time { color: var(--muted); font-size: 13px; }
+.consent-indicator { margin: 0 0 16px; padding: 10px 12px; display: flex; align-items: center; gap: 8px; background: #e2ede4; color: var(--moss-dark); border: 1px solid #92aa99; font-size: 14px; }
+.consent-indicator .icon { width: 18px; height: 18px; }
 .attempt h3 { margin-bottom: 7px; font-size: 16px; }
 pre { max-height: 320px; margin: 0 0 16px; padding: 16px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; background: #222a24; color: #f6f1e5; font-size: 13px; line-height: 1.5; }
 .learner-note { padding-left: 13px; border-left: 3px solid var(--sun); }

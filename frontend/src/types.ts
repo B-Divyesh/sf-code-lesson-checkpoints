@@ -3,6 +3,7 @@ export type Submission = {
   status: 'passed' | 'blocked';
   output: string;
   note: string;
+  consented: boolean;
   teacherReply?: string;
   createdAt: string;
   repliedAt?: string;

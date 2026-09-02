@@ -9,6 +9,9 @@ Lesson planning and sharing are free. The optional Team archive costs $39 once.
 It searches and reopens tutor links saved on that device. Checkout runs on Sociobot’s hosted billing page.
 The app never embeds a payment provider.
 
+This release does not provide shared team accounts, team history, or roster management.
+The researched small-team scope remains a future product decision, documented in [`.factory/scope-decision.md`](.factory/scope-decision.md).
+
 ## Try the sample
 
 Open the isolated sample at <https://code-lesson-checkpoints.sociobot.in/?demo=1>.

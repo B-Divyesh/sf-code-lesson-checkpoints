@@ -145,11 +145,23 @@ const claims = {
       assert.equal((await fetch(`${baseURL}/api/tutor/lessons/${created.id}`, { headers: { Authorization: 'Bearer wrong-private-token' } })).status, 403);
       const submission = tutor.checkpoints[0].submissions[0];
       assert.equal(submission.status, 'blocked');
+      assert.equal(submission.consented, true, 'the stored consent field is returned with the shared attempt');
       assert.equal(submission.note, 'The request may be missing its header.');
       assert.equal(submission.output.includes('claim-secret'), false);
       assert.equal(submission.output.includes('[redacted]'), true);
       assert.equal(submission.output.endsWith('… [output trimmed]'), true);
       assert.ok([...submission.output].length <= 8_020, 'stored output is capped at 8,000 characters plus the trim notice');
+      await inContext(async (_context, page) => {
+        await page.goto(`${baseURL}/lesson/${created.id}?t=${encodeURIComponent(created.tutorToken)}`, { waitUntil: 'networkidle' });
+        const attempts = page.locator('.attempt');
+        assert.equal(await attempts.count(), 1, 'the tutor sees the consented attempt');
+        assert.equal(await attempts.locator('.consent-indicator').count(), 1, 'each tutor-visible attempt has one consent indicator');
+        assert.equal(
+          await attempts.locator('.consent-indicator').innerText(),
+          'Learner reviewed and approved this share.',
+          'the tutor receives an explicit stored-consent indicator',
+        );
+      });
       const reply = await fetch(`${baseURL}/api/tutor/submissions/${submission.id}/reply`, {
         method: 'PUT', headers: { Authorization: `Bearer ${created.tutorToken}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({ reply: 'Inspect where the request headers are created.' }),
@@ -282,7 +294,7 @@ const claims = {
           localStorage.setItem('clc:archive', JSON.stringify(archive));
         }, created);
         await page.goto(`${baseURL}/team`, { waitUntil: 'networkidle' });
-        await page.getByRole('heading', { name: 'Your teaching roster.' }).waitFor();
+        await page.getByRole('heading', { name: 'Your saved tutor links.' }).waitFor();
         assert.deepEqual(await page.locator('.archive-row h2').allTextContents(), fixtures.map(([title]) => title));
         await page.getByLabel('Filter by learner or lesson').fill('schema');
         assert.deepEqual(await page.locator('.archive-row:not([hidden]) h2').allTextContents(), ['Schema migration review']);
