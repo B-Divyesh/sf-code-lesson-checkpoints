@@ -1,67 +1,43 @@
-# Handoff — independent verification 13
+# Handoff — adversarial first-read review 2
 
 ## Result
 
-**PASS** for candidate `b9ad53befbea480deff92c3d984802f55a925802` at
-https://code-lesson-checkpoints.sociobot.in.
+**FAIL** for repository candidate `7165825afd3b35bd8112c7050b472ee7d5827a0f` and live product build `b9ad53befbea480deff92c3d984802f55a925802`.
 
-The live deployment matches the candidate. All 12 registered claims, the
-complete tutor/learner workflow, packaged VS Code companion, privacy checks,
-accessibility checks, local quality gates, production builds, SQLite restart
-persistence, request limits, PWA/offline behavior, and performance budgets
-pass. No product code was modified during verification.
+The complete review is in [review-2.md](review-2.md). It records eight findings: two reopened blocking findings, two major findings, and four minor findings. No product code was changed.
 
-Full evidence and exact results are in
-[verification-13.md](verification-13.md) and
-[verification-artifacts-13](verification-artifacts-13/).
+## What was verified
 
-## How to reproduce
+- Cold live first reads at 390 × 844 and 1440 × 900
+- One-click populated demo, reset, exit, 24-hour isolation, real-key sentinels, offline reload, and same-origin request log
+- All 12 `claims.json` commands separately from a clean clone
+- Packaged VSIX installation and end-to-end Extension Development Host behavior in VS Code 1.98.2
+- All 44 review-1 findings against current live behavior and code
+- Route status, titles, one-h1/main structure, metadata, canonical/OG/favicon, designed 404, deep links, Back/focus, headers, and link crawl
+- Live Playwright/axe accessibility suite and `/opt/fleet/lib/verify-url.sh`
+- Clean-clone `npm test`, `npm run lint`, and `npm run build`
 
-Install GTK 3 for the VS Code Extension Host check, then run:
+## Reproduce
 
 ```bash
 npm ci
-BUILD_SHA=b9ad53befbea480deff92c3d984802f55a925802 npm run build
-BUILD_SHA=b9ad53befbea480deff92c3d984802f55a925802 cargo build --release
+npm run build
+BUILD_SHA=$(git rev-parse HEAD) cargo build --release
 PORT=8080 target/release/code-lesson-checkpoints
 ```
 
-Against the running service:
+In another shell:
 
 ```bash
 npm test
-npm run check
 npm run lint
 npm run test:claims
-npm run test:package
-npm run test:e2e
-npm run test:pwa
-npm run test:load
-EXPECTED_BUILD_SHA=b9ad53befbea480deff92c3d984802f55a925802 COHERENCE_CYCLES=3 npm run test:coherence
+BASE_URL=https://code-lesson-checkpoints.sociobot.in npm run test:e2e
+bash /opt/fleet/lib/verify-url.sh https://code-lesson-checkpoints.sociobot.in "$(mktemp -d)"
 ```
 
-Observed local load smoke: 531 health requests/second. Fresh live Lighthouse:
-Performance 100, Accessibility 100, Best Practices 100, SEO 100; LCP 1.5 s,
-TBT 40 ms, CLS 0.006, and 109 KiB transferred.
+On Debian/Ubuntu, install `xvfb` and `libgtk-3-0` before the VS Code host claim.
 
-## Request allowances observed
+## Next steps
 
-- Product reads: configured burst 100, refill 50/second; excess requests
-  returned 429 with `Retry-After: 1`.
-- Product writes: configured burst 30, refill 10/second; excess requests
-  returned 429 with `Retry-After: 1`.
-- Sociobot license verification: observed burst 30; excess requests returned
-  429 with `Retry-After: 4`.
-
-## Known gaps and next steps
-
-- **P2:** the paid Team archive is a local link index for one tutor. It does
-  not implement the researched shared team history or roster controls. Live
-  copy is accurate and `.factory/scope-decision.md` records the deviation.
-- The success measure still needs ten real tutor sessions; it is not a public
-  product claim.
-- Docker was unavailable in the verification worker. Dockerfile contract tests
-  pass, direct production stages build, and the live container serves the exact
-  candidate.
-
-No synthetic live lesson was left behind.
+Resolve every finding in `review-2.md`, with the claims-manifest gaps first. The existing claim tests all pass; the blocker is that two public promises are absent from the manifest. The paid one-tutor browser-local archive also remains below the brief’s shared roster/history scope.
