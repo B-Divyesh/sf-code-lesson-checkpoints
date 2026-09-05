@@ -1,42 +1,22 @@
-# Handoff — adversarial review 3
+# Handoff — scoped isolation cleanup
 
 ## Result
 
-**PASS.** Review-only work against candidate `634308d817299277bc6f2563ab6c2a5e23f6556b` found no product defects. No product code changed.
+Removed the unused `code-lesson-checkpoints-database-url` secret only from `sf-code-lesson-checkpoints`. No secret value was requested or exposed, and no product code was changed.
 
-## What was done and verified
+## Verification
 
-- Wrote `.factory/review-3.md`, including cold first-read checks at 390 × 844 and 1440 × 900, complete landing/README copy audit, demo isolation, claims, structure, accessibility, and every prior finding’s live recheck.
-- Ran `npm ci`, `npm run build`, `npm test`, `npm run check`, and `npm run lint` against a clean local checkout and release server.
-- Ran every exact claim command separately, then ran `BASE_URL=https://code-lesson-checkpoints.sociobot.in npm run test:claims`. All 12 claims passed locally and live.
-- Ran live `npm run test:e2e`, `npm run test:pwa`, and `npm run test:coherence`. All passed, including offline demo reload and a fresh create/read/share/reply/delete lifecycle.
-- Confirmed same-origin-only public/demo requests, zero page console errors, reset/exit behavior, unchanged real-storage sentinels, metadata, deep links, 404, links, and focus behavior.
+- The target secret name is absent after cleanup, with no target references in the app configuration or its revisions.
+- Active revision `sf-code-lesson-checkpoints--0000034`, image `sociobotregistry.azurecr.io/sf-code-lesson-checkpoints:f1c8a0df6799`, and the single running replica are unchanged.
+- Environment-variable names, one-replica scale, and product-owned `/data` volume configuration are unchanged.
+- `https://code-lesson-checkpoints.sociobot.in/health` returned HTTPS 200 with successful TLS verification before and after.
+- Build SHA remained `f1c8a0df67993a27ea66397b147e9ffaa8f986a4`; health continued to report `status: ok` and `database: sqlite`.
+- Full redacted evidence is in `.factory/isolation-2026-09-05.md` and copied to `/work/.evidence/isolation-report.md`.
 
-## Reproduce
+## Commands to re-verify
 
-```bash
-npm ci
-npm run build
-cargo run --release
-```
-
-Then, in another shell:
-
-```bash
-npm test
-npm run check
-npm run lint
-npm run test:claims
-npm run test:e2e
-npm run test:pwa
-BASE_URL=https://code-lesson-checkpoints.sociobot.in npm run test:claims
-BASE_URL=https://code-lesson-checkpoints.sociobot.in npm run test:e2e
-BASE_URL=https://code-lesson-checkpoints.sociobot.in npm run test:pwa
-BASE_URL=https://code-lesson-checkpoints.sociobot.in npm run test:coherence
-```
-
-The VS Code host claim requires the README-listed `xvfb` and `libgtk-3-0` Linux packages.
+Use names-only queries for the scoped app and request the public health endpoint. Do not request secret values.
 
 ## Known gaps
 
-None found in product scope. The brief’s ten-session preference measure is field research, not a technical QA assertion.
+None. Product tests and builds were not run because the work order explicitly limited this task to configuration cleanup and prohibited rebuilding or changing product code.
