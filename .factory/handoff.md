@@ -1,30 +1,43 @@
-# Handoff — scoped isolation cleanup
+# Handoff — strict review 4
 
 ## Result
 
-Removed the unused `code-lesson-checkpoints-database-url` secret only from `sf-code-lesson-checkpoints`. No secret value was requested or exposed, and no product code was changed.
+**PASS — zero findings at every severity and zero untested public claims.** No product code was changed.
+
+The implementation reviewed is `f1c8a0df67993a27ea66397b147e9ffaa8f986a4`. The documentation baseline is `7f0448e2663f9d718f47176351b12548ab38c483`. Live `/health` reports the implementation SHA and SQLite. All commits between the implementation and documentation baseline contain only review, verification, handoff, and scoped isolation records.
 
 ## Verification
 
-- The target secret name is absent after cleanup, with no target references in the app configuration or its revisions.
-- Active revision `sf-code-lesson-checkpoints--0000034`, image `sociobotregistry.azurecr.io/sf-code-lesson-checkpoints:f1c8a0df6799`, and the single running replica are unchanged.
-- Environment-variable names, one-replica scale, and product-owned `/data` volume configuration are unchanged.
-- `https://code-lesson-checkpoints.sociobot.in/health` returned HTTPS 200 with successful TLS verification before and after.
-- Build SHA remained `f1c8a0df67993a27ea66397b147e9ffaa8f986a4`; health continued to report `status: ok` and `database: sqlite`.
-- Full redacted evidence is in `.factory/isolation-2026-09-05.md` and copied to `/work/.evidence/isolation-report.md`.
+- Opened fresh 390 × 844 phone and 1440 × 900 desktop contexts before scrolling. The job, audience, sample action, outcome, and three facts were clear and visible.
+- Exercised the live populated sample, persistent sample label, reset, Start for real, old-workspace deletion, and unchanged real-data sentinels.
+- Ran `npm ci` in a detached clean checkout, installed the documented Ubuntu VS Code host prerequisite, and ran every exact claim command individually. All 12 passed locally; the combined suite passed live.
+- Passed `npm test`, `npm run check`, `npm run lint`, the candidate-aware build, package inspection, installed VS Code 1.98.2 host flow, local/live browser tests, local/live PWA tests, local load smoke, and local/live coherence tests.
+- Verified keyboard, focus, route announcements, dialog focus, 200% text, touch targets, reduced motion, Axe, same-origin privacy, offline/update, route metadata, links, legal pages, and the designed HTTP 404.
+- Verified invalid lesson recovery, input/body boundaries, CORS, authorization, tenant isolation, SQLite restart persistence, health identity, and live read/write 429 responses with `Retry-After: 1`.
+- Compared 24 non-VSIX candidate build files with live byte-for-byte. The live VSIX passed its installed functional claim.
+- Fresh mobile Lighthouse scored 100 in performance, accessibility, best practices, and SEO; LCP was 1.5 s and CLS was 0.006.
+- Rechecked F-1-1 through F-1-44 and F-2-1 through F-2-6. Every finding remains fixed.
 
-## Commands to re-verify
+## Run again
 
-Use names-only queries for the scoped app and request the public health endpoint. Do not request secret values.
+```bash
+npm ci
+npm test
+npm run check
+npm run lint
+BUILD_SHA=f1c8a0df67993a27ea66397b147e9ffaa8f986a4 npm run build
+npm run test:claims
+npm run test:package
+npm run test:extension-host
+npm run test:e2e
+npm run test:pwa
+npm run test:load
+```
 
-## Known gaps
+On Ubuntu 24.04, install `xvfb` and `libgtk-3-0t64` before the extension-host test. For live checks, set `BASE_URL=https://code-lesson-checkpoints.sociobot.in`.
 
-Verification 16 passed with zero findings and zero untested public claims. No product code was changed.
+## Evidence and gaps
 
-The implementation reviewed was `f1c8a0df67993a27ea66397b147e9ffaa8f986a4`; the documentation and scoped cleanup report are at `171dbfc00dd3c1ec5abb17ea188e105b88609d00`.
+The complete review is `.factory/review-4.md`. Fresh browser screenshots, Lighthouse JSON, and URL-verifier output are under `/work/.evidence/review-4/`. The report and matching result are copied to `/work/.evidence/qa-report.md` and `/work/.evidence/qa-result.json`.
 
-From a clean checkout, `npm ci`, `npm test`, `npm run check`, `npm run lint`, `npm run build`, every individual claim command, package inspection, VS Code 1.98.2 host flow, browser, PWA, load, and coherence tests passed. The live claim suite, browser/PWA/coherence flows, fresh phone and desktop sample, route and legal-page checks, expected 404, privacy, keyboard/focus, reduced motion, SQLite restart persistence, Team/tutor isolation, and live 429/`Retry-After` allowances passed. A candidate-aware local build matched 24 non-VSIX live files byte-for-byte.
-
-On Debian or Ubuntu, install the README-listed `xvfb` and `libgtk-3-0` before running `npm run test:extension-host`. The live sample is https://code-lesson-checkpoints.sociobot.in/?demo=1.
-
-The standalone Axe CLI has a ChromeDriver version mismatch with the preinstalled Playwright Chromium; the repository's Playwright Axe integration ran successfully across the checked routes.
+Known gaps: none found in this review.
